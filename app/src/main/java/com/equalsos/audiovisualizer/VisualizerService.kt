@@ -9,9 +9,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.media.audiofx.Visualizer
 import android.os.Build
 import android.os.IBinder
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -86,17 +88,32 @@ class VisualizerService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        // Get the physical screen height
+        val display = windowManager.defaultDisplay
+        val size = Point()
+        display.getRealSize(size)
+        val screenHeight = size.y
+
+        // Convert 48dp (from visualizer_overlay.xml) to pixels
+        val overlayHeight = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, 48f, resources.displayMetrics
+        ).toInt()
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayHeight, // Use explicit height
             layoutFlag,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         )
 
-        params.gravity = Gravity.BOTTOM or Gravity.FILL_HORIZONTAL
+        // Set gravity to TOP and manually calculate Y position
+        params.gravity = Gravity.TOP or Gravity.START
         params.x = 0
-        params.y = 0
+        params.y = screenHeight - overlayHeight // Position it at the physical bottom
 
         try {
             windowManager.addView(floatingView, params)
@@ -111,7 +128,7 @@ class VisualizerService : Service() {
                 android.Manifest.permission.RECORD_AUDIO
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            stopSelf() // Not ideal, but service shouldn't run without permission
+            stopSelf() // Not ideal, but service shouldn'T run without permission
             return
         }
 
@@ -130,7 +147,7 @@ class VisualizerService : Service() {
                         }
 
                         override fun onFftDataCapture(
-                            visualizer: Visualizer?,
+                            visualjsualizer: Visualizer?,
                             fft: ByteArray?,
                             samplingRate: Int
                         ) {
