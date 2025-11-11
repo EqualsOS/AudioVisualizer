@@ -4,8 +4,37 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
+    <!-- Camera Section Indicator -->
+    <LinearLayout
+        android:id="@+id/camera_section"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tv_camera_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Camera Section"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+        <ImageView
+            android:id="@+id/iv_camera_arrow"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_arrow_up"
+            app:tint="@android:color/white" />
+    </LinearLayout>
+
+    <!-- Center Controls -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -17,11 +46,19 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <TextView
+            android:id="@+id/tvOrientation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Orientation: Portrait"
+            android:textSize="16sp"
+            android:padding="8dp" />
+
+        <TextView
             android:id="@+id/tvPermissionStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Permissions required"
-            android:padding="16dp"/>
+            android:padding="8dp"/>
 
         <Button
             android:id="@+id/btnToggleService"
@@ -30,6 +67,103 @@
             android:text="Start Visualizer"
             android:enabled="false" />
 
+    </LinearLayout>
+
+    <!-- Manual Position Controls -->
+    <GridLayout
+        android:id="@+id/controls_grid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:columnCount="3"
+        android:rowCount="3"
+        app:layout_constraintBottom_toTopOf="@id/navbar_section"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="24dp">
+
+        <!-- Empty Top-Left -->
+        <Space android:layout_width="48dp" android:layout_height="48dp"/>
+
+        <Button
+            android:id="@+id/btn_pos_top"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Top"
+            android:minWidth="48dp"
+            android:minHeight="48dp"/>
+
+        <!-- Empty Top-Right -->
+        <Space android:layout_width="48dp" android:layout_height="48dp"/>
+
+        <Button
+            android:id="@+id/btn_pos_left"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Left"
+            android:minWidth="48dp"
+            android:minHeight="48dp"/>
+
+        <Button
+            android:id="@+id/btn_pos_auto"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Auto"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:layout_gravity="center"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btn_pos_right"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Right"
+            android:minWidth="48dp"
+            android:minHeight="48dp"/>
+
+        <!-- Empty Bottom-Left -->
+        <Space android:layout_width="48dp" android:layout_height="48dp"/>
+
+        <Button
+            android:id="@+id/btn_pos_bottom"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bottom"
+            android:minWidth="48dp"
+            android:minHeight="48dp"/>
+
+        <!-- Empty Bottom-Right -->
+        <Space android:layout_width="48dp" android:layout_height="48dp"/>
+
+    </GridLayout>
+
+
+    <!-- Navbar Section Indicator -->
+    <LinearLayout
+        android:id="@+id/navbar_section"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:padding="16dp">
+
+        <ImageView
+            android:id="@+id/iv_navbar_arrow"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_arrow_down"
+            app:tint="@android:color/white" />
+        <TextView
+            android:id="@+id/tv_navbar_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Navbar Section"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
