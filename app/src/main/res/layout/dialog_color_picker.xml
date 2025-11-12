@@ -16,31 +16,6 @@
         android:textStyle="bold"
         android:layout_marginBottom="16dp"/>
 
-    <!-- NEW: Live Preview in Dialog -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="16dp">
-
-        <View
-            android:id="@+id/dialog_preview_box"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@drawable/color_swatch"
-            android:layout_marginEnd="16dp"/>
-
-        <TextView
-            android:id="@+id/dialog_hex_code"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="#FFFFFF"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:fontFamily="monospace"/>
-    </LinearLayout>
-
     <!-- Color Grid Container -->
     <LinearLayout
         android:id="@+id/color_grid_container"
@@ -110,12 +85,42 @@
 
     </LinearLayout>
 
+    <!-- Bottom Row: Preview, Hex, Copy, Close -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="16dp"
-        android:gravity="end">
+        android:gravity="center_vertical">
+
+        <!-- Live Preview in Dialog -->
+        <View
+            android:id="@+id/dialog_preview_box"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/color_swatch"
+            android:layout_marginEnd="8dp"/>
+
+        <TextView
+            android:id="@+id/dialog_hex_code"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="#FFFFFF"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="monospace"/>
+
+        <!-- Copy Button -->
+        <ImageButton
+            android:id="@+id/btn_dialog_copy"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_content_copy_24"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Copy Hex"
+            android:padding="12dp"
+            android:layout_marginEnd="8dp"/>
 
         <Button
             android:id="@+id/btn_dialog_cancel"
@@ -123,7 +128,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Close"
-            android:textColor="#FFFFFF" /> <!-- Removed Select button -->
+            android:textColor="#FFFFFF"/>
 
     </LinearLayout>
 

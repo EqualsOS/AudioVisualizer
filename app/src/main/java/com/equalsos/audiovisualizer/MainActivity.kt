@@ -3,6 +3,8 @@ package com.equalsos.audiovisualizer
 import android.Manifest
 import android.app.Dialog
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -31,6 +33,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.EditText
+import android.widget.ImageButton // Added
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -133,6 +136,9 @@ class MainActivity : AppCompatActivity() {
         colorPreviewBox = findViewById(R.id.color_preview_box)
         etHexCode = findViewById(R.id.et_hex_code)
         tvColorLabel = findViewById(R.id.tv_color_label)
+
+        // Set localized label for "Color"
+        tvColorLabel.text = getString(R.string.label_color)
 
         switchMirrorVert = findViewById(R.id.switch_mirror_vert)
         switchMirrorHoriz = findViewById(R.id.switch_mirror_horiz)
@@ -525,8 +531,9 @@ class MainActivity : AppCompatActivity() {
         val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container)
         val dialogPreviewBox = dialog.findViewById<View>(R.id.dialog_preview_box)
         val dialogHexCode = dialog.findViewById<TextView>(R.id.dialog_hex_code)
+        val btnCopy = dialog.findViewById<ImageButton>(R.id.btn_dialog_copy)
 
-        // Init dialog UI with current color
+        // Init dialog UI
         updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor)
 
         if (container != null) {
@@ -550,6 +557,14 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+
+        btnCopy.setOnClickListener {
+            val hex = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Hex Color", hex)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "Copied: $hex", Toast.LENGTH_SHORT).show()
         }
 
         dialog.findViewById<Button>(R.id.btn_dialog_cancel).setOnClickListener {
