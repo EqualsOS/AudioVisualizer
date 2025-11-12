@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var isAutoMode = true
     private var currentMode = "AUTO"
 
-    // --- MODIFIED COMPANION OBJECT ---
+    // --- COMPANION OBJECT ---
     companion object {
         var actualPosition = "STOPPED"
         var visualizerStatus = "STOPPED"
@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
         const val KEY_MIRROR_HORIZ = "mirrorHoriz"
         const val KEY_MODE = "mode"
     }
-    // --- END MODIFIED ---
+    // --- END COMPANION ---
 
     private lateinit var orientationEventListener: OrientationEventListener
     private var lastRotation: Int = -1
@@ -505,10 +505,13 @@ class MainActivity : AppCompatActivity() {
                 startService(intent)
             }
 
-            // We still send color manually on a delay
+            // --- MODIFIED: Send initial settings on a delay ---
+            // This ensures the service's receivers are registered and ready
             handler.postDelayed({
                 sendColorCommand(currentSelectedColor)
+                sendNumBarsCommand(currentNumBars) // <-- ADDED THIS
             }, 100)
+            // --- END MODIFIED ---
         }
         btnToggleService.postDelayed({ updateUI() }, 100)
     }

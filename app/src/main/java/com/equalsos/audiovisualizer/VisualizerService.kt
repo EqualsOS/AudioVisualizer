@@ -192,27 +192,15 @@ class VisualizerService : Service() {
         }
     }
 
-    // --- NEW HELPER FUNCTION ---
+    // --- MODIFIED HELPER FUNCTION ---
     private fun loadAllPreferences() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         currentMode = prefs.getString(KEY_MODE, "AUTO") ?: "AUTO"
         userMirrorVert = prefs.getBoolean(KEY_MIRROR_VERT, false)
         userMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
-
-        // Other settings are loaded and applied in onStartCommand
     }
-
-    private fun loadNumBarsFromPrefs(): Int {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getInt(KEY_NUM_BARS, 32)
-    }
-
-    private fun loadColorFromPrefs(): Int {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getInt(KEY_COLOR, Color.parseColor("#26a269"))
-    }
-    // --- END NEW HELPER FUNCTIONS ---
+    // --- END MODIFIED HELPER FUNCTION ---
 
     private fun updatePositionForCurrentOrientation() {
         val display = windowManager.defaultDisplay
@@ -248,21 +236,18 @@ class VisualizerService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
-            // Load all settings from SharedPreferences
+            // Load autonomous settings from SharedPreferences
             loadAllPreferences()
-            val initialNumBars = loadNumBarsFromPrefs()
-            val initialColor = loadColorFromPrefs()
 
-            // Get initial position from intent (this is the only thing we need)
+            // Get initial position from intent
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
 
-            Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition, Bars: $initialNumBars")
+            Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition")
 
             showOverlay(initialPosition)
 
-            // Apply loaded settings
-            visualizerView?.setNumBars(initialNumBars)
-            visualizerView?.setColor(initialColor)
+            // Note: Color and NumBars will be set by the Activity
+            // sending commands on a delay.
 
             if (currentMode == "AUTO") {
                 updatePositionForCurrentOrientation()
