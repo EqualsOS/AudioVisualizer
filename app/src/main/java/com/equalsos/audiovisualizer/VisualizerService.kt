@@ -13,7 +13,9 @@ import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.media.audiofx.Visualizer
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -32,12 +34,29 @@ class VisualizerService : Service() {
     private var visualizerView: VisualizerView? = null
     private var currentParams: WindowManager.LayoutParams? = null
 
-    // Receiver for position commands from MainActivity
-    private val positionReceiver = object : BroadcastReceiver() {
+    // Watchdog to clear bars when audio stops
+    private val handler = Handler(Looper.getMainLooper())
+    private val clearBarsRunnable = Runnable {
+        visualizerView?.updateVisualizer(ByteArray(0)) // Send empty data
+    }
+    private val DATA_TIMEOUT_MS = 150L // Clear bars if no data for 150ms
+
+    private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            intent?.getStringExtra("POSITION")?.let { position ->
-                Log.d(TAG, "Received position command: $position")
-                updateOverlayPosition(position)
+            when (intent?.action) {
+                ACTION_UPDATE_POSITION -> {
+                    intent.getStringExtra("POSITION")?.let { position ->
+                        Log.d(TAG, "Received position command: $position")
+                        updateOverlayPosition(position)
+                    }
+                }
+                ACTION_UPDATE_COLOR -> {
+                    val color = intent.getIntExtra("COLOR", -1)
+                    if (color != -1) {
+                        Log.d(TAG, "Received color command: $color")
+                        visualizerView?.setColor(color)
+                    }
+                }
             }
         }
     }
@@ -48,9 +67,9 @@ class VisualizerService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val TAG = "VisualizerService"
 
-        // Actions for broadcast
         const val ACTION_SERVICE_STOPPED = "com.equalsos.audiovisualizer.ACTION_SERVICE_STOPPED"
         const val ACTION_UPDATE_POSITION = "com.equalsos.audiovisualizer.ACTION_UPDATE_POSITION"
+        const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR"
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -61,8 +80,11 @@ class VisualizerService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
-        LocalBroadcastManager.getInstance(this)
-            .registerReceiver(positionReceiver, IntentFilter(ACTION_UPDATE_POSITION))
+
+        val intentFilter = IntentFilter()
+        intentFilter.addAction(ACTION_UPDATE_POSITION)
+        intentFilter.addAction(ACTION_UPDATE_COLOR)
+        LocalBroadcastManager.getInstance(this).registerReceiver(commandReceiver, intentFilter)
 
         isRunning = true
         Log.d(TAG, "onCreate: Service starting...")
@@ -72,7 +94,6 @@ class VisualizerService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
-            // Get the initial position from the intent (sent by MainActivity)
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
             showOverlay(initialPosition)
             startVisualizer()
@@ -106,7 +127,7 @@ class VisualizerService : Service() {
     @SuppressLint("InflateParams")
     private fun showOverlay(position: String) {
         if (floatingView != null) {
-            removeOverlay() // Remove old one if it exists
+            removeOverlay()
         }
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
@@ -137,7 +158,7 @@ class VisualizerService : Service() {
 
     private fun updateOverlayPosition(position: String) {
         if (floatingView == null || floatingView?.isAttachedToWindow == false) {
-            showOverlay(position) // Create it if it doesn't exist
+            showOverlay(position)
             return
         }
 
@@ -162,13 +183,10 @@ class VisualizerService : Service() {
             TypedValue.COMPLEX_UNIT_DIP, 48f, resources.displayMetrics
         ).toInt()
 
-        // --- THIS IS THE FIX for "Fullscreen/Edge" ---
-        // This combo forces the overlay to draw to the physical edge, ignoring safe areas.
         val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or // Re-add this flag
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        // ----------------------------------------------
 
         val params: WindowManager.LayoutParams
 
@@ -217,7 +235,7 @@ class VisualizerService : Service() {
                 )
                 params.gravity = Gravity.RIGHT
             }
-            else -> { // Default to BOTTOM
+            else -> {
                 visualizerView?.setOrientation(
                     VisualizerView.Orientation.VERTICAL,
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
@@ -258,6 +276,10 @@ class VisualizerService : Service() {
                             fft: ByteArray?,
                             samplingRate: Int
                         ) {
+                            // Reset the watchdog timer
+                            handler.removeCallbacks(clearBarsRunnable)
+                            handler.postDelayed(clearBarsRunnable, DATA_TIMEOUT_MS)
+
                             if (fft != null) {
                                 visualizerView?.updateVisualizer(fft)
                             }
@@ -276,6 +298,9 @@ class VisualizerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Clean up handler
+        handler.removeCallbacks(clearBarsRunnable)
+
         visualizer?.apply {
             enabled = false
             release()
@@ -285,9 +310,8 @@ class VisualizerService : Service() {
 
         isRunning = false
         Log.d(TAG, "onDestroy: Service stopping.")
-        // Notify MainActivity that service has stopped
         LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(ACTION_SERVICE_STOPPED))
 
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(positionReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(commandReceiver)
     }
 }

@@ -6,7 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.Configuration
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -15,14 +15,17 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.OrientationEventListener
 import android.view.Surface
+import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class MainActivity : AppCompatActivity() {
@@ -35,19 +38,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivCameraArrow: ImageView
     private lateinit var ivNavbarArrow: ImageView
     private lateinit var btnAuto: Button
+    private lateinit var colorGrid: GridLayout // NEW: For color picker
 
     private var hasAudioPermission = false
     private var hasOverlayPermission = false
-    private var isAutoMode = true // Start in auto mode by default
+    private var isAutoMode = true
 
     private lateinit var orientationEventListener: OrientationEventListener
-    private var lastRotation: Int = -1 // Store the last known rotation
+    private var lastRotation: Int = -1
 
-    // --- THIS IS THE FIX ---
     private val handler = Handler(Looper.getMainLooper())
-    // -----------------------
 
-    // Receiver to update the toggle button state if service is stopped from notification
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == VisualizerService.ACTION_SERVICE_STOPPED) {
@@ -69,11 +70,10 @@ class MainActivity : AppCompatActivity() {
         ivCameraArrow = findViewById(R.id.iv_camera_arrow)
         ivNavbarArrow = findViewById(R.id.iv_navbar_arrow)
         btnAuto = findViewById(R.id.btn_pos_auto)
+        colorGrid = findViewById(R.id.color_grid) // NEW: Find the grid
 
         // --- Set listeners ---
-        btnToggleService.setOnClickListener {
-            toggleService()
-        }
+        btnToggleService.setOnClickListener { toggleService() }
 
         findViewById<Button>(R.id.btn_pos_top).setOnClickListener { setManualPosition("TOP") }
         findViewById<Button>(R.id.btn_pos_bottom).setOnClickListener { setManualPosition("BOTTOM") }
@@ -81,20 +81,19 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btn_pos_right).setOnClickListener { setManualPosition("RIGHT") }
         btnAuto.setOnClickListener { setAutoMode() }
 
+        // NEW: Set click listeners for all color swatches
+        setupColorGridListeners()
 
         LocalBroadcastManager.getInstance(this).registerReceiver(
             serviceStateReceiver,
             IntentFilter(VisualizerService.ACTION_SERVICE_STOPPED)
         )
 
-        // --- NEW: Orientation Event Listener ---
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
                 val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
                 val currentRotation = display.rotation
-
                 if (currentRotation != lastRotation) {
-                    // Only update if the rotation has *actually* changed
                     lastRotation = currentRotation
                     onRotationChanged(currentRotation)
                 }
@@ -104,15 +103,30 @@ class MainActivity : AppCompatActivity() {
         updateAutoButtonUI()
     }
 
+    // NEW: Click handler for all color swatches
+    fun onColorSwatchClicked(view: View) {
+        // Get the color from the swatch's backgroundTint
+        val color = view.backgroundTintList?.defaultColor
+        if (color != null) {
+            sendColorCommand(color)
+        }
+    }
+
+    // This function is now just for setup, the click is handled by the XML's onClick
+    private fun setupColorGridListeners() {
+        // The onClick is now handled by `android:onClick="onColorSwatchClicked"`
+        // in color_picker_grid.xml, so this function is simpler.
+        // We could add selection visual logic here in the future.
+    }
+
     override fun onResume() {
         super.onResume()
         checkPermissions()
         updateUI()
 
-        // Get initial rotation
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
         lastRotation = display.rotation
-        updateOrientationUI(lastRotation) // Set initial UI
+        updateOrientationUI(lastRotation)
 
         if (orientationEventListener.canDetectOrientation()) {
             orientationEventListener.enable()
@@ -129,51 +143,43 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(serviceStateReceiver)
     }
 
-    // --- Orientation Change Handling ---
-    // This is called by our new listener
     private fun onRotationChanged(rotation: Int) {
         updateOrientationUI(rotation)
 
-        // --- THIS IS THE FIX ---
-        // As you discovered, stopping and starting the service on rotation
-        // is the most reliable way to fix the positioning.
         if (VisualizerService.isRunning) {
-            // We use a small delay to ensure the system has processed the rotation
-            // before we try to stop/start the service.
             handler.postDelayed({
                 toggleService() // Stop
                 handler.postDelayed({
                     toggleService() // Start
-                }, 50) // 50ms delay
+                }, 50)
             }, 50)
         }
-        // -----------------------
     }
 
     private fun updateOrientationUI(rotation: Int) {
         when (rotation) {
-            Surface.ROTATION_0 -> { // Portrait
+            Surface.ROTATION_0 -> {
                 tvOrientation.text = "Orientation: Portrait"
                 tvCameraLabel.text = "Camera Section"
                 tvNavbarLabel.text = "Navbar Section"
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_up)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_down)
             }
-            Surface.ROTATION_90 -> { // Landscape (Rotated Left)
+            Surface.ROTATION_90 -> {
                 tvOrientation.text = "Orientation: Landscape (Left)"
                 tvCameraLabel.text = "Camera Section"
                 tvNavbarLabel.text = "Navbar Section"
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_left)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_right)
             }
-            Surface.ROTATION_180 -> { // Portrait (Upside Down)
+            Surface.ROTATION_180 -> {
                 tvOrientation.text = "Orientation: Portrait (Upside Down)"
                 tvCameraLabel.text = "Camera Section (was Navbar)"
                 tvNavbarLabel.text = "Navbar Section (was Camera)"
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_down)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_up)
             }
-            Surface.ROTATION_270 -> { // Landscape (Rotated Right)
+            Surface.ROTATION_270 -> {
                 tvOrientation.text = "Orientation: Landscape (Right)"
                 tvCameraLabel.text = "Camera Section"
                 tvNavbarLabel.text = "Navbar Section"
@@ -183,7 +189,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Permission Handling ---
     private fun checkPermissions() {
         hasAudioPermission = ContextCompat.checkSelfPermission(
             this,
@@ -222,18 +227,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Service Control ---
     private fun toggleService() {
         val intent = Intent(this, VisualizerService::class.java)
         if (VisualizerService.isRunning) {
             stopService(intent)
         } else {
-            // Start the service and set its initial position
-            isAutoMode = true // Always start in auto mode
+            isAutoMode = true
             updateAutoButtonUI()
 
             val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-            intent.putExtra("POSITION", getAutoPosition(display.rotation)) // Send initial position
+            intent.putExtra("POSITION", getAutoPosition(display.rotation))
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
@@ -241,17 +244,15 @@ class MainActivity : AppCompatActivity() {
                 startService(intent)
             }
         }
-        // Give the service a moment to start/stop before updating UI
         btnToggleService.postDelayed({ updateUI() }, 100)
     }
 
-    // This logic now correctly follows the navbar arrow
     private fun getAutoPosition(rotation: Int): String {
         return when (rotation) {
-            Surface.ROTATION_0 -> "BOTTOM" // Portrait -> Navbar arrow points DOWN
-            Surface.ROTATION_90 -> "RIGHT"  // Landscape (Left) -> Navbar arrow points RIGHT
-            Surface.ROTATION_270 -> "LEFT" // Landscape (Right) -> Navbar arrow points LEFT
-            Surface.ROTATION_180 -> "TOP"  // Upside-down Portrait -> Navbar arrow points UP
+            Surface.ROTATION_0 -> "BOTTOM"
+            Surface.ROTATION_90 -> "RIGHT"
+            Surface.ROTATION_270 -> "LEFT"
+            Surface.ROTATION_180 -> "TOP"
             else -> "BOTTOM"
         }
     }
@@ -266,22 +267,31 @@ class MainActivity : AppCompatActivity() {
         isAutoMode = true
         updateAutoButtonUI()
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-        sendPositionCommand(getAutoPosition(display.rotation)) // Send the correct auto position
+        sendPositionCommand(getAutoPosition(display.rotation))
     }
 
     private fun updateAutoButtonUI() {
-        // The "Auto" button is now always enabled
         btnAuto.isEnabled = true
     }
 
     private fun sendPositionCommand(position: String) {
         if (!VisualizerService.isRunning) {
-            // Don't toast here, as it can be annoying on rotation
-            // Toast.makeText(this, "Start the service first", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Start the service first", Toast.LENGTH_SHORT).show()
             return
         }
         val intent = Intent(VisualizerService.ACTION_UPDATE_POSITION)
         intent.putExtra("POSITION", position)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    // NEW: Send color choice to the service
+    private fun sendColorCommand(color: Int) {
+        if (!VisualizerService.isRunning) {
+            Toast.makeText(this, "Start the service first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(VisualizerService.ACTION_UPDATE_COLOR)
+        intent.putExtra("COLOR", color)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
