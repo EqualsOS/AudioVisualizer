@@ -12,7 +12,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Point // Make sure Point is imported
+import android.graphics.Point
+import android.graphics.Rect
 import android.media.audiofx.Visualizer
 import android.os.Build
 import android.os.Handler
@@ -168,6 +169,7 @@ class VisualizerService : Service() {
         }
     }
 
+    // --- THIS IS THE MODIFIED FUNCTION ---
     @SuppressLint("InflateParams")
     private fun showOverlay(position: String) {
         // This function is now ONLY for creating the view the FIRST time
@@ -177,6 +179,15 @@ class VisualizerService : Service() {
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         floatingView = inflater.inflate(R.layout.visualizer_overlay, null)
+
+        // --- NEWLY ADDED LINE ---
+        // Tell the view to lay out behind the system bars
+        @Suppress("DEPRECATION")
+        floatingView?.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        // --- END OF NEWLY ADDED LINE ---
+
         visualizerView = floatingView?.findViewById(R.id.visualizerView)
 
         currentParams = createLayoutParams(position)
@@ -190,6 +201,7 @@ class VisualizerService : Service() {
             e.printStackTrace()
         }
     }
+    // --- END OF MODIFIED FUNCTION ---
 
     private fun removeOverlay() {
         if (floatingView != null && floatingView?.isAttachedToWindow == true) {
@@ -246,7 +258,7 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    // --- THIS IS THE MODIFIED FUNCTION ---
+
     private fun createLayoutParams(position: String): WindowManager.LayoutParams {
         val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -267,10 +279,24 @@ class VisualizerService : Service() {
         var xPos = 0
         var yPos = 0
 
-        // Get physical screen size for manual positioning
-        val display = windowManager.defaultDisplay
-        val size = Point()
-        display.getRealSize(size)
+        // Get physical screen size using the correct API
+        val physicalWidth: Int
+        val physicalHeight: Int
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds: Rect = windowManager.currentWindowMetrics.bounds
+            physicalWidth = bounds.width()
+            physicalHeight = bounds.height()
+        } else {
+            // Fallback for older devices
+            val display = windowManager.defaultDisplay
+            val size = Point()
+            @Suppress("DEPRECATION")
+            display.getRealSize(size)
+            physicalWidth = size.x
+            physicalHeight = size.y
+        }
+
 
         when (position) {
             "TOP" -> {
@@ -279,10 +305,10 @@ class VisualizerService : Service() {
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
                 )
                 params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
+                    physicalWidth, overlayThickness, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                xPos = 0
+                xPos = 0 // Pin to physical top
                 yPos = 0 // Pin to physical top
             }
             "BOTTOM" -> {
@@ -291,11 +317,11 @@ class VisualizerService : Service() {
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
                 )
                 params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
+                    physicalWidth, overlayThickness, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
                 xPos = 0
-                yPos = size.y - overlayThickness // Pin to physical bottom
+                yPos = physicalHeight - overlayThickness // Pin to physical bottom
             }
             "LEFT" -> {
                 visualizerView?.setOrientation(
@@ -303,11 +329,11 @@ class VisualizerService : Service() {
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
                 )
                 params = WindowManager.LayoutParams(
-                    overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
+                    overlayThickness, physicalHeight, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                xPos = 0
-                yPos = 0 // Pin to physical left
+                xPos = 0 // Pin to physical left
+                yPos = 0 // Pin to physical top
             }
             "RIGHT" -> {
                 visualizerView?.setOrientation(
@@ -315,10 +341,10 @@ class VisualizerService : Service() {
                     VisualizerView.DrawDirection.RIGHT_TO_LEFT
                 )
                 params = WindowManager.LayoutParams(
-                    overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
+                    overlayThickness, physicalHeight, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                xPos = size.x - overlayThickness // Pin to physical right
+                xPos = physicalWidth - overlayThickness // Pin to physical right
                 yPos = 0
             }
             else -> { // Default to BOTTOM logic
@@ -327,11 +353,11 @@ class VisualizerService : Service() {
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
                 )
                 params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
+                    physicalWidth, overlayThickness, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
                 xPos = 0
-                yPos = size.y - overlayThickness
+                yPos = physicalHeight - overlayThickness
             }
         }
 
@@ -349,7 +375,6 @@ class VisualizerService : Service() {
 
         return params
     }
-    // --- END OF MODIFIED FUNCTION ---
 
     private fun startVisualizer() {
         if (ContextCompat.checkSelfPermission(
