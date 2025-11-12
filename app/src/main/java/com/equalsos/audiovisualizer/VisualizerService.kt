@@ -263,7 +263,7 @@ class VisualizerService : Service() {
                     overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.LEFT
+                params.gravity = Gravity.START
             }
             "RIGHT" -> {
                 visualizerView?.setOrientation(
@@ -274,7 +274,7 @@ class VisualizerService : Service() {
                     overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.RIGHT
+                params.gravity = Gravity.END
             }
             else -> {
                 visualizerView?.setOrientation(
