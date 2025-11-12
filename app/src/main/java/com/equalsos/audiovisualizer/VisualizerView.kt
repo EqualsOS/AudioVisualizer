@@ -15,25 +15,30 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
 
     private var targetBarHeights: FloatArray? = null
     private var currentBarHeights: FloatArray? = null
-    private var currentPeakHeights: FloatArray? = null // <-- NEW: Array for peak heights
+    private var currentPeakHeights: FloatArray? = null
     private var orientation: Orientation = Orientation.VERTICAL
     private var drawDirection: DrawDirection = DrawDirection.LEFT_TO_RIGHT
 
-    private var numBars = 32 // Default value
+    private var numBars = 32
 
     private var isMirrorVert = false
     private var isMirrorHoriz = false
 
     private val paint = Paint()
-    private val peakPaint = Paint() // <-- NEW: Paint for peaks
+    private val peakPaint = Paint()
     private var lastFrameTime: Long = 0
 
-    // --- MODIFIED: Tweaked speeds for gravity effect ---
-    private val fallSpeed = 0.9f // Main bar falls fast
+    private val fallSpeed = 0.9f
     private val riseSpeed = 0.9f
-    private val peakFallSpeed = 0.2f // Peak falls slow
-    private val peakHeight = 4.0f // Height of the peak in pixels
-    // --- END MODIFIED ---
+    private val peakFallSpeed = 0.2f
+    private val peakHeight = 4.0f
+
+    // --- NEW: Sensitivity multiplier for high-frequency bars ---
+    // We can tweak this value.
+    // 0.0 = no boost (linear)
+    // 2.0 = last bar is 3x more sensitive than first bar
+    private val sensitivity = 2.0f
+    // --- END NEW ---
 
     enum class Orientation { VERTICAL, HORIZONTAL }
     enum class DrawDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT }
@@ -42,26 +47,22 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         paint.color = Color.parseColor("#26a269")
         paint.style = Paint.Style.FILL
 
-        // --- NEW: Init peak paint ---
         peakPaint.color = lighterColor(paint.color)
         peakPaint.style = Paint.Style.FILL
-        // --- END NEW ---
 
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    // --- NEW: Helper to make peak color lighter ---
     private fun lighterColor(color: Int): Int {
         val hsl = FloatArray(3)
         ColorUtils.colorToHSL(color, hsl)
         hsl[2] = (hsl[2] + 0.15f).coerceAtMost(1.0f) // Increase lightness
         return ColorUtils.HSLToColor(hsl)
     }
-    // --- END NEW ---
 
     fun setColor(color: Int) {
         paint.color = color
-        peakPaint.color = lighterColor(color) // <-- Also update peak color
+        peakPaint.color = lighterColor(color)
     }
 
     fun setMirrored(vert: Boolean, horiz: Boolean) {
@@ -75,10 +76,9 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         if (clampedNumBars == numBars) return
 
         numBars = clampedNumBars
-        // Reset all arrays
         targetBarHeights = null
         currentBarHeights = null
-        currentPeakHeights = null // <-- NEW: Reset peaks
+        currentPeakHeights = null
         invalidate()
     }
 
@@ -93,9 +93,8 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
 
         val targets = targetBarHeights
         var currentBars = currentBarHeights
-        var currentPeaks = currentPeakHeights // <-- NEW: Get peaks
+        var currentPeaks = currentPeakHeights
 
-        // --- MODIFIED: Init/Check all arrays ---
         if (targets != null && targets.size != numBars) {
             targetBarHeights = null
             currentBarHeights = null
@@ -113,10 +112,8 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
             currentPeaks = FloatArray(numBars) { 0f }
             currentPeakHeights = currentPeaks
         }
-        // --- END MODIFIED ---
 
         if (currentBars != null && currentPeaks != null && targets != null) {
-            // Safety check
             if (currentBars.size != numBars || currentPeaks.size != numBars || targets.size != numBars) {
                 targetBarHeights = null
                 currentBarHeights = null
@@ -148,16 +145,13 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
                 val currentPeakHeight = currentPeaks[i]
 
                 if (targetHeight > currentPeakHeight) {
-                    // Peak "sticks" to the bar when rising
-                    val newPeakHeight = currentBars[i] // Use the (new) bar height
+                    val newPeakHeight = currentBars[i]
                     if (currentPeaks[i] != newPeakHeight) {
                         currentPeaks[i] = newPeakHeight
-                        needsRedraw = true // Bar animation will already request this
+                        needsRedraw = true
                     }
                 } else {
-                    // Peak falls slowly when bar drops
                     val newPeakHeight = (currentPeakHeight - peakFallSpeed * deltaTimeMillis).coerceAtLeast(targetHeight)
-                    // Make sure peak doesn't fall *below* the main bar
                     val finalPeakHeight = newPeakHeight.coerceAtLeast(currentBars[i])
                     if (currentPeaks[i] != finalPeakHeight) {
                         currentPeaks[i] = finalPeakHeight
@@ -174,6 +168,7 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         Choreographer.getInstance().postFrameCallback(this)
     }
 
+    // --- MODIFIED FUNCTION ---
     fun updateVisualizer(bytes: ByteArray) {
         val data = bytes
 
@@ -223,11 +218,20 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
 
             val avgMagnitude = if (count > 0) (magnitudeSum / count).toFloat() else 0f
 
-            val targetHeight = (avgMagnitude / maxMagnitude) * maxHeight
+            // --- NEW GAIN LOGIC ---
+            // Create a gain multiplier that increases with the bar index
+            // Bar 0: gain = 1.0 (no boost)
+            // Last Bar: gain = 1.0 + sensitivity
+            val gain = 1.0f + (i.toFloat() / numBars) * sensitivity
+            val boostedMagnitude = avgMagnitude * gain
+            // --- END NEW GAIN LOGIC ---
+
+            val targetHeight = (boostedMagnitude / maxMagnitude) * maxHeight
 
             targetBarHeights?.set(i, targetHeight.coerceAtMost(maxHeight.toFloat()))
         }
     }
+    // --- END MODIFIED FUNCTION ---
 
     fun setOrientation(orientation: Orientation, drawDirection: DrawDirection) {
         this.orientation = orientation
@@ -238,20 +242,19 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         super.onDraw(canvas)
 
         val barHeights = currentBarHeights
-        val peakHeights = currentPeakHeights // <-- NEW: Get peak heights
+        val peakHeights = currentPeakHeights
 
         if (barHeights == null || peakHeights == null) return
         if (width == 0 || height == 0 || numBars == 0) return
         if (barHeights.size != numBars || peakHeights.size != numBars) return
 
         if (orientation == Orientation.VERTICAL) {
-            drawVertical(canvas, barHeights, peakHeights) // <-- Pass peaks
+            drawVertical(canvas, barHeights, peakHeights)
         } else {
-            drawHorizontal(canvas, barHeights, peakHeights) // <-- Pass peaks
+            drawHorizontal(canvas, barHeights, peakHeights)
         }
     }
 
-    // --- MODIFIED: Add peakHeights parameter ---
     private fun drawVertical(canvas: Canvas, barHeights: FloatArray, peakHeights: FloatArray) {
         val barWidth = width.toFloat() / numBars
         val barPadding = barWidth * 0.1f
@@ -272,31 +275,24 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
             val peakBottom: Float
 
             if (isMirrorVert) {
-                // Drawing from Top -> Down
                 barTop = 0f
                 barBottom = barHeight
 
-                // Peak is a small rect *at* the peak height
                 peakTop = (peakHeightVal - peakHeight).coerceAtLeast(0f)
                 peakBottom = peakHeightVal
             } else {
-                // Drawing from Bottom -> Up
                 barTop = height - barHeight
                 barBottom = height.toFloat()
 
-                // Peak is a small rect *at* the peak height
                 peakTop = height - peakHeightVal
                 peakBottom = (height - peakHeightVal + peakHeight).coerceAtMost(height.toFloat())
             }
 
-            // Draw main bar
             canvas.drawRect(left, barTop, right, barBottom, paint)
-            // Draw peak
             canvas.drawRect(left, peakTop, right, peakBottom, peakPaint)
         }
     }
 
-    // --- MODIFIED: Add peakHeights parameter ---
     private fun drawHorizontal(canvas: Canvas, barHeights: FloatArray, peakHeights: FloatArray) {
         val barWidth = height.toFloat() / numBars
         val barPadding = barWidth * 0.1f
@@ -322,14 +318,12 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
             }
 
             if (effectiveDirection == DrawDirection.LEFT_TO_RIGHT) {
-                // Drawing from Left -> Right
                 barLeft = 0f
                 barRight = barHeight
 
                 peakLeft = (peakHeightVal - peakHeight).coerceAtLeast(0f)
                 peakRight = peakHeightVal
             } else {
-                // Drawing from Right -> Left
                 barLeft = width - barHeight
                 barRight = width.toFloat()
 
@@ -337,9 +331,7 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
                 peakRight = (width - peakHeightVal + peakHeight).coerceAtMost(width.toFloat())
             }
 
-            // Draw main bar
             canvas.drawRect(barLeft, top, barRight, bottom, paint)
-            // Draw peak
             canvas.drawRect(peakLeft, top, peakRight, bottom, peakPaint)
         }
     }
