@@ -41,13 +41,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.google.android.material.button.MaterialButton // Added Import
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity() {
 
     // --- UI Views ---
-    private lateinit var btnToggleService: MaterialButton // Changed type to MaterialButton
+    private lateinit var btnToggleService: MaterialButton
     private lateinit var tvPermissionStatus: TextView
     private lateinit var tvOrientationValue: TextView
     private lateinit var tvCameraLabel: TextView
@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity() {
         val spannable = SpannableString(fullText)
         spannable.setSpan(
             StyleSpan(Typeface.BOLD),
-            13, // Start of value
+            13,
             fullText.length,
             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
         )
@@ -348,7 +348,6 @@ class MainActivity : AppCompatActivity() {
 
         if (VisualizerService.isRunning) {
             btnToggleService.text = "STOP VISUALIZER"
-            // FIX: Ensure setIconResource is called on MaterialButton
             btnToggleService.setIconResource(R.drawable.ic_stop_24)
         } else {
             btnToggleService.text = "START VISUALIZER"
@@ -524,30 +523,28 @@ class MainActivity : AppCompatActivity() {
         dialog.setContentView(R.layout.dialog_color_picker)
 
         val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container)
-        val btnSelect = dialog.findViewById<Button>(R.id.btn_dialog_select)
-        var dialogSelectedColor = currentSelectedColor
+        val dialogPreviewBox = dialog.findViewById<View>(R.id.dialog_preview_box)
+        val dialogHexCode = dialog.findViewById<TextView>(R.id.dialog_hex_code)
 
-        btnSelect.setBackgroundColor(dialogSelectedColor)
+        // Init dialog UI with current color
+        updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor)
 
-        // Iterate through the 5 rows (LinearLayouts)
-        // The container has the included layout as its child, wait, I flattened it in xml
-        // so container has rows directly.
         if (container != null) {
             for (i in 0 until container.childCount) {
                 val row = container.getChildAt(i) as? LinearLayout
                 if (row != null) {
                     for (j in 0 until row.childCount) {
                         val swatch = row.getChildAt(j)
-                        swatch.setOnClickListener {
-                            val color = (it.background as? ColorDrawable)?.color
-                            // If ColorDrawable fails (due to backgroundTint), use backgroundTintList
+                        if (swatch.backgroundTintList != null) {
+                            val color = swatch.backgroundTintList?.defaultColor
                             if (color != null) {
-                                dialogSelectedColor = color
-                                btnSelect.setBackgroundColor(color)
-                            } else if (it.backgroundTintList != null) {
-                                val tintColor = it.backgroundTintList!!.defaultColor
-                                dialogSelectedColor = tintColor
-                                btnSelect.setBackgroundColor(tintColor)
+                                swatch.setOnClickListener {
+                                    // Live update everything on click
+                                    currentSelectedColor = color
+                                    updateColorUI() // Update Main Activity UI
+                                    sendColorCommand(currentSelectedColor) // Update Service
+                                    updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor) // Update Dialog UI
+                                }
                             }
                         }
                     }
@@ -559,13 +556,24 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
         }
 
-        btnSelect.setOnClickListener {
-            currentSelectedColor = dialogSelectedColor
-            updateColorUI()
-            sendColorCommand(currentSelectedColor)
-            dialog.dismiss()
+        dialog.show()
+    }
+
+    private fun updateDialogPreview(previewBox: View?, hexLabel: TextView?, color: Int) {
+        if (previewBox != null) {
+            val drawable = previewBox.background.mutate()
+            if (drawable is GradientDrawable) {
+                drawable.setColor(color)
+            } else {
+                val wrappedDrawable = DrawableCompat.wrap(drawable)
+                DrawableCompat.setTint(wrappedDrawable, color)
+                previewBox.background = wrappedDrawable
+            }
         }
 
-        dialog.show()
+        if (hexLabel != null) {
+            val hexColor = String.format("#%06X", (0xFFFFFF and color))
+            hexLabel.text = hexColor
+        }
     }
 }

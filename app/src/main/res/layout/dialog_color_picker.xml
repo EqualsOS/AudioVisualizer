@@ -16,6 +16,31 @@
         android:textStyle="bold"
         android:layout_marginBottom="16dp"/>
 
+    <!-- NEW: Live Preview in Dialog -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+        <View
+            android:id="@+id/dialog_preview_box"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/color_swatch"
+            android:layout_marginEnd="16dp"/>
+
+        <TextView
+            android:id="@+id/dialog_hex_code"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="#FFFFFF"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="monospace"/>
+    </LinearLayout>
+
     <!-- Color Grid Container -->
     <LinearLayout
         android:id="@+id/color_grid_container"
@@ -25,62 +50,62 @@
 
         <!-- Row 1 -->
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#b3d9ff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#b3e6b3" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffffb3" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffe0b3" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffb3b3" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#e0b3ff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#d9c2a3" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffffff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#b3d9ff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#b3e6b3" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffffb3" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffe0b3" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffb3b3" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#e0b3ff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#d9c2a3" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffffff" />
         </LinearLayout>
 
         <!-- Row 2 -->
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#80bfff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#80d980" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffff80" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffd280" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ff8080" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#d280ff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#c6a980" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#cccccc" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#80bfff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#80d980" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffff80" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffd280" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ff8080" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#d280ff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#c6a980" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#cccccc" />
         </LinearLayout>
 
         <!-- Row 3 -->
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#4da6ff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#4dcb4d" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffff4d" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffc04d" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ff4d4d" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#c04dff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#b38f5a" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#999999" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#4da6ff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#4dcb4d" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffff4d" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffc04d" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ff4d4d" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#c04dff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#b38f5a" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#999999" />
         </LinearLayout>
 
         <!-- Row 4 -->
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#1a8cff" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#1aad1a" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#e6e600" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffac1a" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#e60000" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#ae00e6" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#9f773a" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#666666" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#1a8cff" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#1aad1a" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#e6e600" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ffac1a" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#e60000" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#ae00e6" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#9f773a" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#666666" />
         </LinearLayout>
 
         <!-- Row 5 -->
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#0066cc" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#008000" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#b3b300" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#e68a00" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#b30000" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#8d00b3" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#805c2a" />
-            <View android:layout_width="32dp" android:layout_height="32dp" android:layout_margin="4dp" android:background="@drawable/color_swatch" android:backgroundTint="#000000" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#0066cc" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#008000" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#b3b300" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#e68a00" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#b30000" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#8d00b3" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#805c2a" />
+            <View android:layout_width="28dp" android:layout_height="28dp" android:layout_margin="2dp" android:background="@drawable/color_swatch" android:backgroundTint="#000000" />
         </LinearLayout>
 
     </LinearLayout>
@@ -97,15 +122,8 @@
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cancel"
-            android:textColor="#FFFFFF"
-            android:layout_marginEnd="8dp"/>
-
-        <Button
-            android:id="@+id/btn_dialog_select"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Select" />
+            android:text="Close"
+            android:textColor="#FFFFFF" /> <!-- Removed Select button -->
 
     </LinearLayout>
 
