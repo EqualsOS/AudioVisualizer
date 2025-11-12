@@ -64,16 +64,6 @@ class VisualizerService : Service() {
         }
     }
 
-    private val forceInitReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ACTION_FORCE_INIT) {
-                Log.d(TAG, "Force initializing visualizer...")
-                startVisualizer()
-            }
-        }
-    }
-
-    // --- Watchdog for empty audio ---
     private val handler = Handler(Looper.getMainLooper())
     private var lastFftTime: Long = 0
     private val fftTimeout = 150L
@@ -94,7 +84,7 @@ class VisualizerService : Service() {
         const val ACTION_POSITION_UPDATED = "com.equalsos.audiovisualizer.ACTION_POSITION_UPDATED"
         const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR"
         const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
-        const val ACTION_FORCE_INIT = "com.equalsos.audiovisualizer.ACTION_FORCE_INIT"
+        const val ACTION_STATUS_UPDATED = "com.equalsos.audiovisualizer.ACTION_STATUS_UPDATED"
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -109,7 +99,6 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).registerReceiver(positionReceiver, IntentFilter(ACTION_UPDATE_POSITION))
         LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, IntentFilter(ACTION_UPDATE_COLOR))
         LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
-        LocalBroadcastManager.getInstance(this).registerReceiver(forceInitReceiver, IntentFilter(ACTION_FORCE_INIT))
 
         isRunning = true
         Log.d(TAG, "onCreate: Service starting...")
@@ -202,6 +191,12 @@ class VisualizerService : Service() {
     private fun broadcastActualPosition(position: String) {
         val intent = Intent(ACTION_POSITION_UPDATED)
         intent.putExtra("POSITION", position)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    private fun broadcastStatus(status: String) {
+        val intent = Intent(ACTION_STATUS_UPDATED)
+        intent.putExtra("STATUS", status)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
@@ -319,6 +314,7 @@ class VisualizerService : Service() {
                                 visualizerView?.updateVisualizer(fft)
                                 lastFftTime = System.currentTimeMillis()
                                 handler.postDelayed(clearBarsRunnable, fftTimeout + 10)
+                                broadcastStatus("ACTIVE")
                             }
                         }
                     },
@@ -330,7 +326,7 @@ class VisualizerService : Service() {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Retry initialization if it fails (e.g. audio session not ready)
+            broadcastStatus("RETRYING...")
             handler.postDelayed({ startVisualizer() }, 1000)
         }
     }
@@ -354,6 +350,5 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(positionReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(forceInitReceiver)
     }
 }

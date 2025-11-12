@@ -55,19 +55,13 @@
                 android:orientation="horizontal"
                 android:layout_marginBottom="8dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Orientation: "
-                    android:textSize="16sp" />
-
+                <!-- REMOVED the "Orientation: " text from here since MainActivity adds it -->
                 <TextView
                     android:id="@+id/tvOrientationValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="PORTRAIT"
-                    android:textSize="16sp"
-                    android:textStyle="bold" /> <!-- Bold Value -->
+                    android:text="Orientation: PORTRAIT"
+                    android:textSize="16sp" />
             </LinearLayout>
 
             <TextView
@@ -85,15 +79,17 @@
                 android:layout_height="wrap_content"
                 android:enabled="false"
                 android:text="START VISUALIZER"
-                android:layout_marginBottom="8dp"/>
+                android:layout_marginBottom="16dp"
+                app:icon="@drawable/ic_play_arrow_24"
+                app:iconGravity="textStart"
+                app:iconTint="@color/white" />
 
-            <!-- NEW: Force Init Button -->
-            <Button
-                android:id="@+id/btnForceInit"
-                style="?attr/materialButtonOutlinedStyle"
+            <TextView
+                android:id="@+id/tvVisualizerStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Force Init Visualizer"
+                android:text="Visualizer Status: STOPPED"
+                android:textStyle="bold"
                 android:layout_marginBottom="16dp"/>
 
         </LinearLayout>
@@ -231,7 +227,7 @@
 
         </LinearLayout>
 
-        <!-- NEW: Mirror Vertical Switch -->
+        <!-- Mirror Vertical Switch -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -257,7 +253,7 @@
 
         </LinearLayout>
 
-        <!-- NEW: Mirror Horizontal Switch -->
+        <!-- Mirror Horizontal Switch -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

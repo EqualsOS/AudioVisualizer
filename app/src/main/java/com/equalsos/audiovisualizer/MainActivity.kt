@@ -31,7 +31,6 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.EditText
-import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -42,22 +41,21 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.google.android.material.button.MaterialButton // Added Import
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity() {
 
     // --- UI Views ---
-    private lateinit var btnToggleService: Button
+    private lateinit var btnToggleService: MaterialButton // Changed type to MaterialButton
     private lateinit var tvPermissionStatus: TextView
-    private lateinit var tvOrientation: TextView
+    private lateinit var tvOrientationValue: TextView
     private lateinit var tvCameraLabel: TextView
     private lateinit var tvNavbarLabel: TextView
     private lateinit var ivCameraArrow: ImageView
     private lateinit var ivNavbarArrow: ImageView
     private lateinit var btnAuto: Button
-
-    // NEW: Force Init Button
-    private lateinit var btnForceInit: Button
+    private lateinit var tvVisualizerStatus: TextView
 
     // Color Picker UI
     private lateinit var colorPreviewBox: View
@@ -82,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     private var isAutoMode = true
     private var currentMode = "AUTO"
     private var actualPosition = "STOPPED"
+    private var visualizerStatus = "STOPPED"
 
     private lateinit var orientationEventListener: OrientationEventListener
     private var lastRotation: Int = -1
@@ -92,6 +91,7 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == VisualizerService.ACTION_SERVICE_STOPPED) {
                 actualPosition = "STOPPED"
+                visualizerStatus = "STOPPED"
                 updateUI()
             }
         }
@@ -106,6 +106,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val statusUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == VisualizerService.ACTION_STATUS_UPDATED) {
+                visualizerStatus = intent.getStringExtra("STATUS") ?: "UNKNOWN"
+                updateUI()
+            }
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,16 +122,13 @@ class MainActivity : AppCompatActivity() {
 
         btnToggleService = findViewById(R.id.btnToggleService)
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
-        tvOrientation = findViewById(R.id.tvOrientationValue)
+        tvOrientationValue = findViewById(R.id.tvOrientationValue)
         tvCameraLabel = findViewById(R.id.tv_camera_label)
         tvNavbarLabel = findViewById(R.id.tv_navbar_label)
         ivCameraArrow = findViewById(R.id.iv_camera_arrow)
         ivNavbarArrow = findViewById(R.id.iv_navbar_arrow)
         btnAuto = findViewById(R.id.btn_pos_auto)
-
-        // Removed btnForceInit from layout, so removing reference here as well
-        // We decided to automate it. If you still have the button in layout, keep this.
-        // btnForceInit = findViewById(R.id.btnForceInit)
+        tvVisualizerStatus = findViewById(R.id.tvVisualizerStatus)
 
         colorPreviewBox = findViewById(R.id.color_preview_box)
         etHexCode = findViewById(R.id.et_hex_code)
@@ -138,9 +144,6 @@ class MainActivity : AppCompatActivity() {
         btnToggleService.setOnClickListener {
             toggleService()
         }
-
-        // Removed Force Init Listener
-        // btnForceInit.setOnClickListener { sendForceInitCommand() }
 
         findViewById<Button>(R.id.btn_pos_top).setOnClickListener { setManualPosition("TOP") }
         findViewById<Button>(R.id.btn_pos_bottom).setOnClickListener { setManualPosition("BOTTOM") }
@@ -167,6 +170,9 @@ class MainActivity : AppCompatActivity() {
 
         val positionIntentFilter = IntentFilter(VisualizerService.ACTION_POSITION_UPDATED)
         LocalBroadcastManager.getInstance(this).registerReceiver(positionUpdateReceiver, positionIntentFilter)
+
+        val statusIntentFilter = IntentFilter(VisualizerService.ACTION_STATUS_UPDATED)
+        LocalBroadcastManager.getInstance(this).registerReceiver(statusUpdateReceiver, statusIntentFilter)
 
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
@@ -209,6 +215,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(serviceStateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(positionUpdateReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(statusUpdateReceiver)
     }
 
     private fun onRotationChanged(rotation: Int) {
@@ -234,16 +241,15 @@ class MainActivity : AppCompatActivity() {
             else -> "UNKNOWN"
         }
 
-        // Bold the value part
         val fullText = "Orientation: $orientationText"
         val spannable = SpannableString(fullText)
         spannable.setSpan(
             StyleSpan(Typeface.BOLD),
-            13, // Start after "Orientation: "
+            13, // Start of value
             fullText.length,
             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
         )
-        tvOrientation.text = spannable
+        tvOrientationValue.text = spannable
 
         when (rotation) {
             Surface.ROTATION_0 -> {
@@ -340,11 +346,16 @@ class MainActivity : AppCompatActivity() {
             btnToggleService.isEnabled = false
         }
 
-        btnToggleService.text = if (VisualizerService.isRunning) {
-            "STOP VISUALIZER"
+        if (VisualizerService.isRunning) {
+            btnToggleService.text = "STOP VISUALIZER"
+            // FIX: Ensure setIconResource is called on MaterialButton
+            btnToggleService.setIconResource(R.drawable.ic_stop_24)
         } else {
-            "START VISUALIZER"
+            btnToggleService.text = "START VISUALIZER"
+            btnToggleService.setIconResource(R.drawable.ic_play_arrow_24)
         }
+
+        tvVisualizerStatus.text = "Visualizer Status: $visualizerStatus"
         updateDiagnosticLabels()
     }
 
@@ -365,6 +376,7 @@ class MainActivity : AppCompatActivity() {
         if (VisualizerService.isRunning) {
             stopService(intent)
             actualPosition = "STOPPED"
+            visualizerStatus = "STOPPED"
         } else {
             val startPos = if (isAutoMode) {
                 val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
@@ -374,6 +386,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             actualPosition = "STARTING..."
+            visualizerStatus = "STARTING..."
             updateAutoButtonUI()
 
             intent.putExtra("POSITION", startPos)
@@ -448,13 +461,6 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    private fun sendForceInitCommand() {
-        if (!VisualizerService.isRunning) return
-        val intent = Intent(VisualizerService.ACTION_FORCE_INIT)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-        Toast.makeText(this, "Force initializing visualizer...", Toast.LENGTH_SHORT).show()
-    }
-
     private fun updateColorUI() {
         val hexColor = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
         val drawable = colorPreviewBox.background.mutate()
@@ -523,16 +529,26 @@ class MainActivity : AppCompatActivity() {
 
         btnSelect.setBackgroundColor(dialogSelectedColor)
 
-        for (i in 0 until container.childCount) {
-            val row = container.getChildAt(i) as? LinearLayout
-            if (row != null) {
-                for (j in 0 until row.childCount) {
-                    val swatch = row.getChildAt(j)
-                    swatch.setOnClickListener {
-                        val color = (it.background as? ColorDrawable)?.color
-                        if (color != null) {
-                            dialogSelectedColor = color
-                            btnSelect.setBackgroundColor(color)
+        // Iterate through the 5 rows (LinearLayouts)
+        // The container has the included layout as its child, wait, I flattened it in xml
+        // so container has rows directly.
+        if (container != null) {
+            for (i in 0 until container.childCount) {
+                val row = container.getChildAt(i) as? LinearLayout
+                if (row != null) {
+                    for (j in 0 until row.childCount) {
+                        val swatch = row.getChildAt(j)
+                        swatch.setOnClickListener {
+                            val color = (it.background as? ColorDrawable)?.color
+                            // If ColorDrawable fails (due to backgroundTint), use backgroundTintList
+                            if (color != null) {
+                                dialogSelectedColor = color
+                                btnSelect.setBackgroundColor(color)
+                            } else if (it.backgroundTintList != null) {
+                                val tintColor = it.backgroundTintList!!.defaultColor
+                                dialogSelectedColor = tintColor
+                                btnSelect.setBackgroundColor(tintColor)
+                            }
                         }
                     }
                 }
