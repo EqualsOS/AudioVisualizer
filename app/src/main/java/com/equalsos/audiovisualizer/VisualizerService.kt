@@ -12,7 +12,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Point // <-- Import Point
+import android.graphics.Point // Make sure Point is imported
 import android.media.audiofx.Visualizer
 import android.os.Build
 import android.os.Handler
@@ -264,7 +264,13 @@ class VisualizerService : Service() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 
         val params: WindowManager.LayoutParams
-        var yPos = 0 // Will be modified by BOTTOM case
+        var xPos = 0
+        var yPos = 0
+
+        // Get physical screen size for manual positioning
+        val display = windowManager.defaultDisplay
+        val size = Point()
+        display.getRealSize(size)
 
         when (position) {
             "TOP" -> {
@@ -276,7 +282,8 @@ class VisualizerService : Service() {
                     WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.TOP
+                xPos = 0
+                yPos = 0 // Pin to physical top
             }
             "BOTTOM" -> {
                 visualizerView?.setOrientation(
@@ -287,14 +294,8 @@ class VisualizerService : Service() {
                     WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                // Use TOP gravity and manually set Y to draw behind nav bar
-                params.gravity = Gravity.TOP
-
-                // Get physical screen height
-                val display = windowManager.defaultDisplay
-                val size = Point()
-                display.getRealSize(size)
-                yPos = size.y - overlayThickness // Align to physical bottom
+                xPos = 0
+                yPos = size.y - overlayThickness // Pin to physical bottom
             }
             "LEFT" -> {
                 visualizerView?.setOrientation(
@@ -305,7 +306,8 @@ class VisualizerService : Service() {
                     overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.LEFT
+                xPos = 0
+                yPos = 0 // Pin to physical left
             }
             "RIGHT" -> {
                 visualizerView?.setOrientation(
@@ -316,7 +318,8 @@ class VisualizerService : Service() {
                     overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.RIGHT
+                xPos = size.x - overlayThickness // Pin to physical right
+                yPos = 0
             }
             else -> { // Default to BOTTOM logic
                 visualizerView?.setOrientation(
@@ -327,20 +330,22 @@ class VisualizerService : Service() {
                     WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.TOP
-                val display = windowManager.defaultDisplay
-                val size = Point()
-                display.getRealSize(size)
+                xPos = 0
                 yPos = size.y - overlayThickness
             }
         }
+
+        // Set the base gravity for ALL positions to TOP|LEFT
+        // This makes (x,y) coordinates relative to the physical top-left corner
+        params.gravity = Gravity.TOP or Gravity.LEFT
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
 
-        params.x = 0
-        params.y = yPos // Apply the calculated Y position (0 for all but BOTTOM)
+        // Apply the calculated coordinates
+        params.x = xPos
+        params.y = yPos
 
         return params
     }
