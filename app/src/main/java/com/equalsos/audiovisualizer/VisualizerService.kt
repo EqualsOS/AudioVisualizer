@@ -12,6 +12,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Point // <-- Import Point
 import android.media.audiofx.Visualizer
 import android.os.Build
 import android.os.Handler
@@ -245,6 +246,7 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
+    // --- THIS IS THE MODIFIED FUNCTION ---
     private fun createLayoutParams(position: String): WindowManager.LayoutParams {
         val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -262,6 +264,7 @@ class VisualizerService : Service() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 
         val params: WindowManager.LayoutParams
+        var yPos = 0 // Will be modified by BOTTOM case
 
         when (position) {
             "TOP" -> {
@@ -284,7 +287,14 @@ class VisualizerService : Service() {
                     WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.BOTTOM
+                // Use TOP gravity and manually set Y to draw behind nav bar
+                params.gravity = Gravity.TOP
+
+                // Get physical screen height
+                val display = windowManager.defaultDisplay
+                val size = Point()
+                display.getRealSize(size)
+                yPos = size.y - overlayThickness // Align to physical bottom
             }
             "LEFT" -> {
                 visualizerView?.setOrientation(
@@ -308,7 +318,7 @@ class VisualizerService : Service() {
                 )
                 params.gravity = Gravity.RIGHT
             }
-            else -> {
+            else -> { // Default to BOTTOM logic
                 visualizerView?.setOrientation(
                     VisualizerView.Orientation.VERTICAL,
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
@@ -317,7 +327,11 @@ class VisualizerService : Service() {
                     WindowManager.LayoutParams.MATCH_PARENT, overlayThickness,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.BOTTOM
+                params.gravity = Gravity.TOP
+                val display = windowManager.defaultDisplay
+                val size = Point()
+                display.getRealSize(size)
+                yPos = size.y - overlayThickness
             }
         }
 
@@ -326,10 +340,11 @@ class VisualizerService : Service() {
         }
 
         params.x = 0
-        params.y = 0
+        params.y = yPos // Apply the calculated Y position (0 for all but BOTTOM)
 
         return params
     }
+    // --- END OF MODIFIED FUNCTION ---
 
     private fun startVisualizer() {
         if (ContextCompat.checkSelfPermission(
