@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration // Added import
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -23,7 +24,7 @@ import android.text.Editable
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.TextWatcher
-import android.text.style.ForegroundColorSpan // Added
+import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import android.util.Log
 import android.view.OrientationEventListener
@@ -43,6 +44,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -82,8 +84,12 @@ class MainActivity : AppCompatActivity() {
     private var hasOverlayPermission = false
     private var isAutoMode = true
     private var currentMode = "AUTO"
-    private var actualPosition = "STOPPED"
-    private var visualizerStatus = "STOPPED"
+
+    // Use static state for status/position so it survives rotation recreation
+    companion object {
+        var actualPosition = "STOPPED"
+        var visualizerStatus = "STOPPED"
+    }
 
     private lateinit var orientationEventListener: OrientationEventListener
     private var lastRotation: Int = -1
@@ -137,7 +143,6 @@ class MainActivity : AppCompatActivity() {
         etHexCode = findViewById(R.id.et_hex_code)
         tvColorLabel = findViewById(R.id.tv_color_label)
 
-        // Try to use localized string, fallback if missing
         val labelResId = resources.getIdentifier("label_color", "string", packageName)
         if (labelResId != 0) {
             tvColorLabel.text = getString(labelResId)
@@ -232,12 +237,13 @@ class MainActivity : AppCompatActivity() {
         updateDiagnosticLabels()
 
         if (VisualizerService.isRunning) {
-            handler.postDelayed({
-                toggleService()
-                handler.postDelayed({
-                    toggleService()
-                }, 50)
-            }, 50)
+            // FIX: No stop/start. Just send the command!
+            if (isAutoMode) {
+                val newPos = getAutoPosition(rotation)
+                sendPositionCommand(newPos)
+            } else {
+                sendPositionCommand(currentMode)
+            }
         }
     }
 
@@ -363,7 +369,6 @@ class MainActivity : AppCompatActivity() {
             btnToggleService.setIconResource(R.drawable.ic_play_arrow_24)
         }
 
-        // --- NEW: Status Color Logic ---
         val fullStatusText = "Visualizer Status: $visualizerStatus"
         val spannableStatus = SpannableString(fullStatusText)
 
@@ -375,7 +380,7 @@ class MainActivity : AppCompatActivity() {
 
         spannableStatus.setSpan(
             ForegroundColorSpan(statusColor),
-            19, // Start of status value
+            19,
             fullStatusText.length,
             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
         )
@@ -593,7 +598,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Copied: $hex", Toast.LENGTH_SHORT).show()
         }
 
-        dialog.findViewById<Button>(R.id.btn_dialog_cancel).setOnClickListener {
+        dialog.findViewById<Button>(R.id.btn_dialog_close).setOnClickListener {
             dialog.dismiss()
         }
 

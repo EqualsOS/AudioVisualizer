@@ -122,6 +122,7 @@ class VisualizerService : Service() {
         if (floatingView == null) {
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
             showOverlay(initialPosition)
+
             broadcastStatus("STARTING...")
             startVisualizer()
         }
@@ -185,19 +186,25 @@ class VisualizerService : Service() {
     }
 
     private fun updateOverlayPosition(position: String) {
-        if (floatingView == null || floatingView?.isAttachedToWindow == false) {
-            showOverlay(position)
-            return
+        // FIX: Completely remove and re-add the view to force a clean layout update.
+        if (floatingView != null) {
+            try {
+                windowManager.removeView(floatingView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing view for update", e)
+            }
         }
 
-        val newParams = createLayoutParams(position)
+        // Create new params
+        currentParams = createLayoutParams(position)
 
         try {
-            windowManager.updateViewLayout(floatingView, newParams)
-            currentParams = newParams
+            windowManager.addView(floatingView, currentParams)
             broadcastActualPosition(position)
         } catch (e: Exception) {
-            Log.e(TAG, "Error updating view layout", e)
+            Log.e(TAG, "Error adding view for update", e)
+            // If add fails, try to recreate the whole view
+            showOverlay(position)
         }
     }
 
@@ -263,7 +270,7 @@ class VisualizerService : Service() {
                     overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.START
+                params.gravity = Gravity.LEFT
             }
             "RIGHT" -> {
                 visualizerView?.setOrientation(
@@ -274,7 +281,7 @@ class VisualizerService : Service() {
                     overlayThickness, WindowManager.LayoutParams.MATCH_PARENT,
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.END
+                params.gravity = Gravity.RIGHT
             }
             else -> {
                 visualizerView?.setOrientation(
@@ -313,7 +320,8 @@ class VisualizerService : Service() {
             visualizer?.release()
 
             visualizer = Visualizer(0).apply {
-                enabled = false // FIX: Must be false before setting captureSize
+                // FIX: Explicitly disable BEFORE setting configuration
+                enabled = false
                 captureSize = Visualizer.getCaptureSizeRange()[1]
                 setDataCaptureListener(
                     object : Visualizer.OnDataCaptureListener {
@@ -336,7 +344,8 @@ class VisualizerService : Service() {
                     false,
                     true
                 )
-                enabled = true // Now safe to enable
+                // FIX: Enable AFTER configuration
+                enabled = true
             }
         } catch (e: Exception) {
             e.printStackTrace()
