@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration // <-- IMPORT
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Point
@@ -23,6 +24,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.Surface // <-- IMPORT
 import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -38,13 +40,18 @@ class VisualizerService : Service() {
     private var currentParams: WindowManager.LayoutParams? = null
     private var currentPosition: String = "BOTTOM" // Track position internally
     private var currentStatus: String = "STARTING..." // Track status internally
+    private var currentMode: String = "AUTO" // Track mode internally
 
     // --- Broadcast Receivers ---
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent?.getStringExtra("POSITION")?.let { position ->
                 Log.d(TAG, "Received position command: $position")
-                updateOverlayPosition(position)
+                // Only update position if we are in manual mode
+                // (or service will fight with config changes)
+                if (currentMode != "AUTO") {
+                    updateOverlayPosition(position)
+                }
             }
         }
     }
@@ -77,13 +84,28 @@ class VisualizerService : Service() {
         }
     }
 
-    // NEW: Ping Receiver
     private val pingReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_PING) {
                 Log.d(TAG, "Received PING, responding with state.")
                 broadcastStatus(currentStatus)
                 broadcastActualPosition(currentPosition)
+            }
+        }
+    }
+
+    // --- NEW RECEIVER ---
+    private val modeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_SET_MODE) {
+                val newMode = intent.getStringExtra("MODE") ?: "AUTO"
+                Log.d(TAG, "Mode set to: $newMode")
+                currentMode = newMode // Store the new mode
+
+                // If mode is set back to AUTO, trigger an immediate update
+                if (currentMode == "AUTO") {
+                    updatePositionForCurrentOrientation()
+                }
             }
         }
     }
@@ -111,7 +133,8 @@ class VisualizerService : Service() {
         const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
         const val ACTION_FORCE_INIT = "com.equalsos.audiovisualizer.ACTION_FORCE_INIT"
         const val ACTION_STATUS_UPDATED = "com.equalsos.audiovisualizer.ACTION_STATUS_UPDATED"
-        const val ACTION_PING = "com.equalsos.audiovisualizer.ACTION_PING" // NEW
+        const val ACTION_PING = "com.equalsos.audiovisualizer.ACTION_PING"
+        const val ACTION_SET_MODE = "com.equalsos.audiovisualizer.ACTION_SET_MODE" // <-- NEW
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -127,18 +150,64 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, IntentFilter(ACTION_UPDATE_COLOR))
         LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
         LocalBroadcastManager.getInstance(this).registerReceiver(forceInitReceiver, IntentFilter(ACTION_FORCE_INIT))
-        LocalBroadcastManager.getInstance(this).registerReceiver(pingReceiver, IntentFilter(ACTION_PING)) // Register PING
+        LocalBroadcastManager.getInstance(this).registerReceiver(pingReceiver, IntentFilter(ACTION_PING))
+        LocalBroadcastManager.getInstance(this).registerReceiver(modeReceiver, IntentFilter(ACTION_SET_MODE)) // <-- NEW
 
         isRunning = true
         Log.d(TAG, "onCreate: Service starting...")
     }
+
+    // --- NEW OVERRIDE FUNCTION ---
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d(TAG, "onConfigurationChanged detected.")
+        if (currentMode == "AUTO") {
+            // A short delay helps ensure the display rotation properties are fully updated
+            handler.postDelayed({
+                updatePositionForCurrentOrientation()
+            }, 50)
+        }
+    }
+
+    // --- NEW HELPER FUNCTION ---
+    private fun updatePositionForCurrentOrientation() {
+        val display = windowManager.defaultDisplay
+        val rotation = display.rotation
+
+        val autoPosition = getAutoPosition(rotation)
+        Log.d(TAG, "Auto-updating position for rotation $rotation: $autoPosition")
+        updateOverlayPosition(autoPosition)
+    }
+
+    // --- NEW HELPER FUNCTION ---
+    private fun getAutoPosition(rotation: Int): String {
+        return when (rotation) {
+            Surface.ROTATION_0 -> "BOTTOM"
+            Surface.ROTATION_90 -> "RIGHT"
+            Surface.ROTATION_270 -> "LEFT"
+            Surface.ROTATION_180 -> "TOP"
+            else -> "BOTTOM"
+        }
+    }
+
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
+            currentMode = intent?.getStringExtra("MODE") ?: "AUTO" // <-- MODIFIED
+
+            Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition")
+
             showOverlay(initialPosition)
+
+            // --- ADDED BLOCK ---
+            // If starting in AUTO mode, ensure position is correct for current rotation
+            if (currentMode == "AUTO") {
+                updatePositionForCurrentOrientation()
+            }
+            // --- END ADDED BLOCK ---
 
             broadcastStatus("STARTING...")
             startVisualizer()
@@ -169,24 +238,19 @@ class VisualizerService : Service() {
         }
     }
 
-    // --- THIS IS THE MODIFIED FUNCTION ---
     @SuppressLint("InflateParams")
     private fun showOverlay(position: String) {
-        // This function is now ONLY for creating the view the FIRST time
         if (floatingView != null) {
-            return // Avoid re-creating if it already exists
+            return
         }
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         floatingView = inflater.inflate(R.layout.visualizer_overlay, null)
 
-        // --- NEWLY ADDED LINE ---
-        // Tell the view to lay out behind the system bars
         @Suppress("DEPRECATION")
         floatingView?.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        // --- END OF NEWLY ADDED LINE ---
 
         visualizerView = floatingView?.findViewById(R.id.visualizerView)
 
@@ -194,14 +258,12 @@ class VisualizerService : Service() {
 
         try {
             windowManager.addView(floatingView, currentParams)
-            // Update internal state
             currentPosition = position
             handler.postDelayed({ broadcastActualPosition(position) }, 100)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
-    // --- END OF MODIFIED FUNCTION ---
 
     private fun removeOverlay() {
         if (floatingView != null && floatingView?.isAttachedToWindow == true) {
@@ -217,28 +279,28 @@ class VisualizerService : Service() {
     }
 
     private fun updateOverlayPosition(position: String) {
-        // Guard against calls when view isn't ready
         if (floatingView == null || currentParams == null || !floatingView!!.isAttachedToWindow) {
             Log.w(TAG, "updateOverlayPosition called but view is not ready. Re-creating.")
-            // As a fallback, remove any old view and create a new one
             removeOverlay()
             showOverlay(position)
             return
         }
 
-        // Create the new params based on the position
+        // Only update if the position is actually different
+        if (position == currentPosition && currentParams?.width != 0) {
+            // We check width != 0 to ensure params are initialized
+            // This prevents redundant updates
+            return
+        }
+
         currentParams = createLayoutParams(position)
 
         try {
-            // Use updateViewLayout to apply the new params
             windowManager.updateViewLayout(floatingView, currentParams)
-
-            // Update internal state and broadcast
             currentPosition = position
             broadcastActualPosition(position)
         } catch (e: Exception) {
             Log.e(TAG, "Error updating view layout", e)
-            // If update fails (e.g., view got detached), fall back to remove/add
             removeOverlay()
             showOverlay(position)
         }
@@ -251,7 +313,6 @@ class VisualizerService : Service() {
     }
 
     private fun broadcastStatus(status: String) {
-        // Update internal state
         currentStatus = status
         val intent = Intent(ACTION_STATUS_UPDATED)
         intent.putExtra("STATUS", status)
@@ -279,7 +340,6 @@ class VisualizerService : Service() {
         var xPos = 0
         var yPos = 0
 
-        // Get physical screen size using the correct API
         val physicalWidth: Int
         val physicalHeight: Int
 
@@ -288,7 +348,6 @@ class VisualizerService : Service() {
             physicalWidth = bounds.width()
             physicalHeight = bounds.height()
         } else {
-            // Fallback for older devices
             val display = windowManager.defaultDisplay
             val size = Point()
             @Suppress("DEPRECATION")
@@ -308,8 +367,8 @@ class VisualizerService : Service() {
                     physicalWidth, overlayThickness, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                xPos = 0 // Pin to physical top
-                yPos = 0 // Pin to physical top
+                xPos = 0
+                yPos = 0
             }
             "BOTTOM" -> {
                 visualizerView?.setOrientation(
@@ -321,7 +380,7 @@ class VisualizerService : Service() {
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
                 xPos = 0
-                yPos = physicalHeight - overlayThickness // Pin to physical bottom
+                yPos = physicalHeight - overlayThickness
             }
             "LEFT" -> {
                 visualizerView?.setOrientation(
@@ -332,8 +391,8 @@ class VisualizerService : Service() {
                     overlayThickness, physicalHeight, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                xPos = 0 // Pin to physical left
-                yPos = 0 // Pin to physical top
+                xPos = 0
+                yPos = 0
             }
             "RIGHT" -> {
                 visualizerView?.setOrientation(
@@ -344,7 +403,7 @@ class VisualizerService : Service() {
                     overlayThickness, physicalHeight, // Use exact dimensions
                     layoutFlag, flags, PixelFormat.TRANSLUCENT
                 )
-                xPos = physicalWidth - overlayThickness // Pin to physical right
+                xPos = physicalWidth - overlayThickness
                 yPos = 0
             }
             else -> { // Default to BOTTOM logic
@@ -361,15 +420,12 @@ class VisualizerService : Service() {
             }
         }
 
-        // Set the base gravity for ALL positions to TOP|LEFT
-        // This makes (x,y) coordinates relative to the physical top-left corner
         params.gravity = Gravity.TOP or Gravity.LEFT
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
 
-        // Apply the calculated coordinates
         params.x = xPos
         params.y = yPos
 
@@ -442,6 +498,7 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(forceInitReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(pingReceiver) // Unregister PING
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(pingReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(modeReceiver) // <-- NEW
     }
 }

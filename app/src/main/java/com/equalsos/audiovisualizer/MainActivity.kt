@@ -169,7 +169,6 @@ class MainActivity : AppCompatActivity() {
         tvColorLabel.setOnClickListener(colorClickListener)
         setupHexCodeListener()
 
-        // --- MODIFIED SWITCH LISTENERS ---
         switchMirrorVert.setOnCheckedChangeListener { _, isChecked ->
             isMirrorVert = isChecked
             sendMirroredCommand(getCurrentTargetPosition())
@@ -178,7 +177,6 @@ class MainActivity : AppCompatActivity() {
             isMirrorHoriz = isChecked
             sendMirroredCommand(getCurrentTargetPosition())
         }
-        // --- END MODIFIED SWITCH LISTENERS ---
 
         val serviceIntentFilter = IntentFilter(VisualizerService.ACTION_SERVICE_STOPPED)
         LocalBroadcastManager.getInstance(this).registerReceiver(serviceStateReceiver, serviceIntentFilter)
@@ -234,18 +232,16 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(statusUpdateReceiver)
     }
 
+    // --- MODIFIED FUNCTION ---
     private fun onRotationChanged(rotation: Int) {
+        // This function's ONLY job is to update the MainActivity UI
         updateOrientationUI(rotation)
         updateDiagnosticLabels()
 
         if (VisualizerService.isRunning) {
-            val targetPosition = if (isAutoMode) {
-                getAutoPosition(rotation)
-            } else {
-                currentMode
-            }
-            sendPositionCommand(targetPosition)
-            sendMirroredCommand(targetPosition) // Pass the target position to determine mirroring
+            // The service handles its own position in AUTO mode.
+            // We *only* need to update the mirroring based on the expected position.
+            sendMirroredCommand(getCurrentTargetPosition())
         }
     }
 
@@ -404,6 +400,7 @@ class MainActivity : AppCompatActivity() {
         tvActualPosition.text = "Actual Position: $actualPosition"
     }
 
+    // --- MODIFIED FUNCTION ---
     private fun toggleService() {
         val intent = Intent(this, VisualizerService::class.java)
         if (VisualizerService.isRunning) {
@@ -423,6 +420,7 @@ class MainActivity : AppCompatActivity() {
             updateAutoButtonUI()
 
             intent.putExtra("POSITION", startPos)
+            intent.putExtra("MODE", currentMode) // <-- ADD THIS
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
@@ -448,7 +446,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- NEW HELPER FUNCTION ---
     private fun getCurrentTargetPosition(): String {
         return if (isAutoMode) {
             getAutoPosition(lastRotation)
@@ -456,30 +453,43 @@ class MainActivity : AppCompatActivity() {
             currentMode
         }
     }
-    // --- END NEW HELPER FUNCTION ---
 
+    // --- MODIFIED FUNCTION ---
     private fun setManualPosition(position: String) {
         isAutoMode = false
         currentMode = position
         updateAutoButtonUI()
         updateDiagnosticLabels()
-        sendPositionCommand(position)
+
+        sendModeCommand(position) // Tell service the new mode is "TOP", "LEFT", etc.
+        sendPositionCommand(position) // Tell service to move
         sendMirroredCommand(position) // Apply mirroring logic for manual positions too
     }
 
+    // --- MODIFIED FUNCTION ---
     private fun setAutoMode() {
         isAutoMode = true
         currentMode = "AUTO"
         updateAutoButtonUI()
         updateDiagnosticLabels()
+
+        sendModeCommand("AUTO") // Tell service new mode is "AUTO"
+
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
         val targetPosition = getAutoPosition(display.rotation)
-        sendPositionCommand(targetPosition)
-        sendMirroredCommand(targetPosition) // Apply mirroring logic for auto mode
+        sendPositionCommand(targetPosition) // Send initial position
+        sendMirroredCommand(targetPosition)
     }
 
     private fun updateAutoButtonUI() {
         btnAuto.isEnabled = !isAutoMode
+    }
+
+    // --- NEW HELPER FUNCTION ---
+    private fun sendModeCommand(mode: String) {
+        val intent = Intent(VisualizerService.ACTION_SET_MODE)
+        intent.putExtra("MODE", mode)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     private fun sendPositionCommand(position: String) {
@@ -499,20 +509,10 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    // --- MODIFIED FUNCTION (XOR LOGIC) ---
     private fun sendMirroredCommand(position: String) {
         if (!VisualizerService.isRunning) return
 
-        // 1. Determine the base mirror state for the orientation
-        //    (Only RIGHT position is mirrored by default)
         val baseMirror = (position == "RIGHT")
-
-        // 2. Use XOR to toggle the base state with the user's switch
-        //    (baseMirror)  (isMirrorHoriz)  (Result)
-        //    false (LEFT)  false (OFF)      false
-        //    false (LEFT)  true (ON)        true
-        //    true (RIGHT)  false (OFF)      true
-        //    true (RIGHT)  true (ON)        false  <-- This is the "additional flip"
         val finalIsMirrorHoriz = baseMirror xor isMirrorHoriz
 
         val intent = Intent(VisualizerService.ACTION_UPDATE_MIRRORED)
@@ -520,7 +520,6 @@ class MainActivity : AppCompatActivity() {
         intent.putExtra("IS_MIRROR_HORIZ", finalIsMirrorHoriz)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
-    // --- END MODIFIED FUNCTION ---
 
     private fun updateColorUI() {
         val hexColor = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
