@@ -34,6 +34,8 @@ class VisualizerService : Service() {
     private var visualizer: Visualizer? = null
     private var visualizerView: VisualizerView? = null
     private var currentParams: WindowManager.LayoutParams? = null
+    private var currentPosition: String = "BOTTOM" // Track position internally
+    private var currentStatus: String = "STARTING..." // Track status internally
 
     // --- Broadcast Receivers ---
     private val positionReceiver = object : BroadcastReceiver() {
@@ -73,6 +75,17 @@ class VisualizerService : Service() {
         }
     }
 
+    // NEW: Ping Receiver
+    private val pingReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_PING) {
+                Log.d(TAG, "Received PING, responding with state.")
+                broadcastStatus(currentStatus)
+                broadcastActualPosition(currentPosition)
+            }
+        }
+    }
+
     // --- Watchdog for empty audio ---
     private val handler = Handler(Looper.getMainLooper())
     private var lastFftTime: Long = 0
@@ -96,6 +109,7 @@ class VisualizerService : Service() {
         const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
         const val ACTION_FORCE_INIT = "com.equalsos.audiovisualizer.ACTION_FORCE_INIT"
         const val ACTION_STATUS_UPDATED = "com.equalsos.audiovisualizer.ACTION_STATUS_UPDATED"
+        const val ACTION_PING = "com.equalsos.audiovisualizer.ACTION_PING" // NEW
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -111,6 +125,7 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, IntentFilter(ACTION_UPDATE_COLOR))
         LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
         LocalBroadcastManager.getInstance(this).registerReceiver(forceInitReceiver, IntentFilter(ACTION_FORCE_INIT))
+        LocalBroadcastManager.getInstance(this).registerReceiver(pingReceiver, IntentFilter(ACTION_PING)) // Register PING
 
         isRunning = true
         Log.d(TAG, "onCreate: Service starting...")
@@ -154,8 +169,9 @@ class VisualizerService : Service() {
 
     @SuppressLint("InflateParams")
     private fun showOverlay(position: String) {
+        // This function is now ONLY for creating the view the FIRST time
         if (floatingView != null) {
-            removeOverlay()
+            return // Avoid re-creating if it already exists
         }
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
@@ -166,6 +182,8 @@ class VisualizerService : Service() {
 
         try {
             windowManager.addView(floatingView, currentParams)
+            // Update internal state
+            currentPosition = position
             handler.postDelayed({ broadcastActualPosition(position) }, 100)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -186,24 +204,29 @@ class VisualizerService : Service() {
     }
 
     private fun updateOverlayPosition(position: String) {
-        // FIX: Completely remove and re-add the view to force a clean layout update.
-        if (floatingView != null) {
-            try {
-                windowManager.removeView(floatingView)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error removing view for update", e)
-            }
+        // Guard against calls when view isn't ready
+        if (floatingView == null || currentParams == null || !floatingView!!.isAttachedToWindow) {
+            Log.w(TAG, "updateOverlayPosition called but view is not ready. Re-creating.")
+            // As a fallback, remove any old view and create a new one
+            removeOverlay()
+            showOverlay(position)
+            return
         }
 
-        // Create new params
+        // Create the new params based on the position
         currentParams = createLayoutParams(position)
 
         try {
-            windowManager.addView(floatingView, currentParams)
+            // Use updateViewLayout to apply the new params
+            windowManager.updateViewLayout(floatingView, currentParams)
+
+            // Update internal state and broadcast
+            currentPosition = position
             broadcastActualPosition(position)
         } catch (e: Exception) {
-            Log.e(TAG, "Error adding view for update", e)
-            // If add fails, try to recreate the whole view
+            Log.e(TAG, "Error updating view layout", e)
+            // If update fails (e.g., view got detached), fall back to remove/add
+            removeOverlay()
             showOverlay(position)
         }
     }
@@ -215,6 +238,8 @@ class VisualizerService : Service() {
     }
 
     private fun broadcastStatus(status: String) {
+        // Update internal state
+        currentStatus = status
         val intent = Intent(ACTION_STATUS_UPDATED)
         intent.putExtra("STATUS", status)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
@@ -320,7 +345,6 @@ class VisualizerService : Service() {
             visualizer?.release()
 
             visualizer = Visualizer(0).apply {
-                // FIX: Explicitly disable BEFORE setting configuration
                 enabled = false
                 captureSize = Visualizer.getCaptureSizeRange()[1]
                 setDataCaptureListener(
@@ -344,13 +368,11 @@ class VisualizerService : Service() {
                     false,
                     true
                 )
-                // FIX: Enable AFTER configuration
                 enabled = true
             }
         } catch (e: Exception) {
             e.printStackTrace()
             broadcastStatus("RETRYING...")
-            // Retry every 200ms (Fast retry)
             handler.postDelayed({ startVisualizer() }, 200)
         }
     }
@@ -375,5 +397,6 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(forceInitReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(pingReceiver) // Unregister PING
     }
 }

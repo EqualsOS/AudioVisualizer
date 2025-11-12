@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.Configuration // Added import
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -194,6 +193,8 @@ class MainActivity : AppCompatActivity() {
                 val currentRotation = display.rotation
 
                 if (currentRotation != lastRotation) {
+                    // This check prevents infinite loops
+                    // And only triggers when rotation *actually* changes
                     lastRotation = currentRotation
                     onRotationChanged(currentRotation)
                 }
@@ -205,20 +206,30 @@ class MainActivity : AppCompatActivity() {
         updateColorUI()
     }
 
+    // --- THIS IS THE FIXED FUNCTION ---
     override fun onResume() {
         super.onResume()
         checkPermissions()
         updateUI()
 
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-        lastRotation = display.rotation
-        updateOrientationUI(lastRotation)
-        updateDiagnosticLabels()
+        val currentRotation = display.rotation
+
+        // We set lastRotation here to prevent the listener from firing
+        // immediately after, but we *still* call onRotationChanged
+        // to sync the service to the *current* state.
+        lastRotation = currentRotation
+
+        // Manually trigger the rotation change logic on resume
+        // to sync the service with the activity's current state.
+        // This handles the case where the activity is recreated in a new orientation.
+        onRotationChanged(currentRotation)
 
         if (orientationEventListener.canDetectOrientation()) {
             orientationEventListener.enable()
         }
     }
+    // --- END OF FIX ---
 
     override fun onPause() {
         super.onPause()
@@ -237,10 +248,8 @@ class MainActivity : AppCompatActivity() {
         updateDiagnosticLabels()
 
         if (VisualizerService.isRunning) {
-            // FIX: No stop/start. Just send the command!
             if (isAutoMode) {
-                val newPos = getAutoPosition(rotation)
-                sendPositionCommand(newPos)
+                sendPositionCommand(getAutoPosition(rotation))
             } else {
                 sendPositionCommand(currentMode)
             }
