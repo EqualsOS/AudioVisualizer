@@ -64,6 +64,15 @@ class VisualizerService : Service() {
         }
     }
 
+    private val forceInitReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_FORCE_INIT) {
+                Log.d(TAG, "Force initializing visualizer...")
+                startVisualizer()
+            }
+        }
+    }
+
     // --- Watchdog for empty audio ---
     private val handler = Handler(Looper.getMainLooper())
     private var lastFftTime: Long = 0
@@ -85,6 +94,7 @@ class VisualizerService : Service() {
         const val ACTION_POSITION_UPDATED = "com.equalsos.audiovisualizer.ACTION_POSITION_UPDATED"
         const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR"
         const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
+        const val ACTION_FORCE_INIT = "com.equalsos.audiovisualizer.ACTION_FORCE_INIT"
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -99,8 +109,10 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).registerReceiver(positionReceiver, IntentFilter(ACTION_UPDATE_POSITION))
         LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, IntentFilter(ACTION_UPDATE_COLOR))
         LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
+        LocalBroadcastManager.getInstance(this).registerReceiver(forceInitReceiver, IntentFilter(ACTION_FORCE_INIT))
 
         isRunning = true
+        Log.d(TAG, "onCreate: Service starting...")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -109,7 +121,7 @@ class VisualizerService : Service() {
         if (floatingView == null) {
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
             showOverlay(initialPosition)
-            startVisualizer() // Try starting immediately
+            startVisualizer()
         }
 
         return START_STICKY
@@ -151,7 +163,6 @@ class VisualizerService : Service() {
 
         try {
             windowManager.addView(floatingView, currentParams)
-            // Send the initial position broadcast with a slight delay to ensure MainActivity is ready
             handler.postDelayed({ broadcastActualPosition(position) }, 100)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -270,7 +281,6 @@ class VisualizerService : Service() {
             }
         }
 
-        // Allow drawing into display cutouts
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
@@ -292,6 +302,8 @@ class VisualizerService : Service() {
         }
 
         try {
+            visualizer?.release()
+
             visualizer = Visualizer(0).apply {
                 captureSize = Visualizer.getCaptureSizeRange()[1]
                 setDataCaptureListener(
@@ -334,6 +346,7 @@ class VisualizerService : Service() {
 
         isRunning = false
         Log.d(TAG, "onDestroy: Service stopping.")
+        handler.removeCallbacks(clearBarsRunnable)
         handler.removeCallbacksAndMessages(null)
 
         LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(ACTION_SERVICE_STOPPED))
@@ -341,5 +354,6 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(positionReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(forceInitReceiver)
     }
 }

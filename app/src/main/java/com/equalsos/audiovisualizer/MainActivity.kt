@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -17,7 +18,10 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.Editable
+import android.text.Spannable
+import android.text.SpannableString
 import android.text.TextWatcher
+import android.text.style.StyleSpan
 import android.util.Log
 import android.view.OrientationEventListener
 import android.view.Surface
@@ -27,6 +31,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.EditText
+import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -50,6 +55,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivCameraArrow: ImageView
     private lateinit var ivNavbarArrow: ImageView
     private lateinit var btnAuto: Button
+
+    // NEW: Force Init Button
+    private lateinit var btnForceInit: Button
 
     // Color Picker UI
     private lateinit var colorPreviewBox: View
@@ -105,12 +113,16 @@ class MainActivity : AppCompatActivity() {
 
         btnToggleService = findViewById(R.id.btnToggleService)
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
-        tvOrientation = findViewById(R.id.tvOrientation)
+        tvOrientation = findViewById(R.id.tvOrientationValue)
         tvCameraLabel = findViewById(R.id.tv_camera_label)
         tvNavbarLabel = findViewById(R.id.tv_navbar_label)
         ivCameraArrow = findViewById(R.id.iv_camera_arrow)
         ivNavbarArrow = findViewById(R.id.iv_navbar_arrow)
         btnAuto = findViewById(R.id.btn_pos_auto)
+
+        // Removed btnForceInit from layout, so removing reference here as well
+        // We decided to automate it. If you still have the button in layout, keep this.
+        // btnForceInit = findViewById(R.id.btnForceInit)
 
         colorPreviewBox = findViewById(R.id.color_preview_box)
         etHexCode = findViewById(R.id.et_hex_code)
@@ -126,6 +138,9 @@ class MainActivity : AppCompatActivity() {
         btnToggleService.setOnClickListener {
             toggleService()
         }
+
+        // Removed Force Init Listener
+        // btnForceInit.setOnClickListener { sendForceInitCommand() }
 
         findViewById<Button>(R.id.btn_pos_top).setOnClickListener { setManualPosition("TOP") }
         findViewById<Button>(R.id.btn_pos_bottom).setOnClickListener { setManualPosition("BOTTOM") }
@@ -218,7 +233,17 @@ class MainActivity : AppCompatActivity() {
             Surface.ROTATION_270 -> "LANDSCAPE (RIGHT)"
             else -> "UNKNOWN"
         }
-        tvOrientation.text = "Orientation: $orientationText"
+
+        // Bold the value part
+        val fullText = "Orientation: $orientationText"
+        val spannable = SpannableString(fullText)
+        spannable.setSpan(
+            StyleSpan(Typeface.BOLD),
+            13, // Start after "Orientation: "
+            fullText.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        tvOrientation.text = spannable
 
         when (rotation) {
             Surface.ROTATION_0 -> {
@@ -330,7 +355,7 @@ class MainActivity : AppCompatActivity() {
             currentMode
         }
 
-        tvCurrentMode.text = "Current Mode: $currentMode"
+        tvCurrentMode.text = "CURRENT MODE: $currentMode"
         tvExpectedPosition.text = "Expected Position: $expected"
         tvActualPosition.text = "Actual Position: $actualPosition"
     }
@@ -423,6 +448,13 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
+    private fun sendForceInitCommand() {
+        if (!VisualizerService.isRunning) return
+        val intent = Intent(VisualizerService.ACTION_FORCE_INIT)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        Toast.makeText(this, "Force initializing visualizer...", Toast.LENGTH_SHORT).show()
+    }
+
     private fun updateColorUI() {
         val hexColor = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
         val drawable = colorPreviewBox.background.mutate()
@@ -485,28 +517,22 @@ class MainActivity : AppCompatActivity() {
         val dialog = Dialog(this, R.style.ColorPickerDialogTheme)
         dialog.setContentView(R.layout.dialog_color_picker)
 
-        val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container) // Use the new ID
+        val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container)
         val btnSelect = dialog.findViewById<Button>(R.id.btn_dialog_select)
         var dialogSelectedColor = currentSelectedColor
 
         btnSelect.setBackgroundColor(dialogSelectedColor)
 
-        // Iterate through the 5 rows (LinearLayouts)
-        // The container now has the included layout, which is the root
-        val gridRoot = container.getChildAt(0) as? LinearLayout // This is the layout from color_picker_grid.xml
-
-        if (gridRoot != null) {
-            for (i in 0 until gridRoot.childCount) {
-                val row = gridRoot.getChildAt(i) as? LinearLayout
-                if (row != null) {
-                    for (j in 0 until row.childCount) {
-                        val swatch = row.getChildAt(j)
-                        swatch.setOnClickListener {
-                            val color = (it.background as? ColorDrawable)?.color
-                            if (color != null) {
-                                dialogSelectedColor = color
-                                btnSelect.setBackgroundColor(color)
-                            }
+        for (i in 0 until container.childCount) {
+            val row = container.getChildAt(i) as? LinearLayout
+            if (row != null) {
+                for (j in 0 until row.childCount) {
+                    val swatch = row.getChildAt(j)
+                    swatch.setOnClickListener {
+                        val color = (it.background as? ColorDrawable)?.color
+                        if (color != null) {
+                            dialogSelectedColor = color
+                            btnSelect.setBackgroundColor(color)
                         }
                     }
                 }

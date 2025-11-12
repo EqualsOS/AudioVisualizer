@@ -48,13 +48,27 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tvOrientation"
+            <!-- Split Orientation Text -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Orientation: Portrait"
-                android:textSize="16sp"
-                android:layout_marginBottom="8dp"/>
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Orientation: "
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tvOrientationValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PORTRAIT"
+                    android:textSize="16sp"
+                    android:textStyle="bold" /> <!-- Bold Value -->
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvPermissionStatus"
@@ -70,7 +84,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:enabled="false"
-                android:text="Start Visualizer"
+                android:text="START VISUALIZER"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- NEW: Force Init Button -->
+            <Button
+                android:id="@+id/btnForceInit"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Force Init Visualizer"
                 android:layout_marginBottom="16dp"/>
 
         </LinearLayout>
