@@ -25,9 +25,10 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.CompoundButton
 import android.widget.EditText
-import android.widget.GridLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +37,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity() {
 
@@ -49,10 +51,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivNavbarArrow: ImageView
     private lateinit var btnAuto: Button
 
-    // NEW Color Picker UI
+    // Color Picker UI
     private lateinit var colorPreviewBox: View
     private lateinit var etHexCode: EditText
-    private var currentSelectedColor: Int = Color.parseColor("#26a269") // Default Green
+    private lateinit var tvColorLabel: TextView
+    private var currentSelectedColor: Int = Color.parseColor("#26a269")
+
+    // Mirrored Switches
+    private lateinit var switchMirrorVert: SwitchMaterial
+    private lateinit var switchMirrorHoriz: SwitchMaterial
+    private var isMirrorVert = false
+    private var isMirrorHoriz = false
 
     // --- Diagnostic Views ---
     private lateinit var tvCurrentMode: TextView
@@ -63,8 +72,8 @@ class MainActivity : AppCompatActivity() {
     private var hasAudioPermission = false
     private var hasOverlayPermission = false
     private var isAutoMode = true
-    private var currentMode = "Auto"
-    private var actualPosition = "Stopped"
+    private var currentMode = "AUTO"
+    private var actualPosition = "STOPPED"
 
     private lateinit var orientationEventListener: OrientationEventListener
     private var lastRotation: Int = -1
@@ -74,7 +83,7 @@ class MainActivity : AppCompatActivity() {
     private val serviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == VisualizerService.ACTION_SERVICE_STOPPED) {
-                actualPosition = "Stopped"
+                actualPosition = "STOPPED"
                 updateUI()
             }
         }
@@ -83,7 +92,7 @@ class MainActivity : AppCompatActivity() {
     private val positionUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == VisualizerService.ACTION_POSITION_UPDATED) {
-                actualPosition = intent.getStringExtra("POSITION") ?: "Unknown"
+                actualPosition = intent.getStringExtra("POSITION") ?: "UNKNOWN"
                 updateDiagnosticLabels()
             }
         }
@@ -94,7 +103,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // --- Find all views ---
         btnToggleService = findViewById(R.id.btnToggleService)
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
         tvOrientation = findViewById(R.id.tvOrientation)
@@ -104,15 +112,17 @@ class MainActivity : AppCompatActivity() {
         ivNavbarArrow = findViewById(R.id.iv_navbar_arrow)
         btnAuto = findViewById(R.id.btn_pos_auto)
 
-        // NEW Color UI
         colorPreviewBox = findViewById(R.id.color_preview_box)
         etHexCode = findViewById(R.id.et_hex_code)
+        tvColorLabel = findViewById(R.id.tv_color_label)
+
+        switchMirrorVert = findViewById(R.id.switch_mirror_vert)
+        switchMirrorHoriz = findViewById(R.id.switch_mirror_horiz)
 
         tvCurrentMode = findViewById(R.id.tvCurrentMode)
         tvExpectedPosition = findViewById(R.id.tvExpectedPosition)
         tvActualPosition = findViewById(R.id.tvActualPosition)
 
-        // --- Set listeners ---
         btnToggleService.setOnClickListener {
             toggleService()
         }
@@ -123,18 +133,26 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btn_pos_right).setOnClickListener { setManualPosition("RIGHT") }
         btnAuto.setOnClickListener { setAutoMode() }
 
-        // NEW Color Listeners
-        colorPreviewBox.setOnClickListener { showColorPickerDialog() }
+        val colorClickListener = View.OnClickListener { showColorPickerDialog() }
+        colorPreviewBox.setOnClickListener(colorClickListener)
+        tvColorLabel.setOnClickListener(colorClickListener)
         setupHexCodeListener()
 
-        // Register receivers
+        switchMirrorVert.setOnCheckedChangeListener { _, isChecked ->
+            isMirrorVert = isChecked
+            sendMirroredCommand()
+        }
+        switchMirrorHoriz.setOnCheckedChangeListener { _, isChecked ->
+            isMirrorHoriz = isChecked
+            sendMirroredCommand()
+        }
+
         val serviceIntentFilter = IntentFilter(VisualizerService.ACTION_SERVICE_STOPPED)
         LocalBroadcastManager.getInstance(this).registerReceiver(serviceStateReceiver, serviceIntentFilter)
 
         val positionIntentFilter = IntentFilter(VisualizerService.ACTION_POSITION_UPDATED)
         LocalBroadcastManager.getInstance(this).registerReceiver(positionUpdateReceiver, positionIntentFilter)
 
-        // Setup orientation listener
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
                 val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
@@ -149,7 +167,7 @@ class MainActivity : AppCompatActivity() {
 
         updateAutoButtonUI()
         updateDiagnosticLabels()
-        updateColorUI() // Set initial color
+        updateColorUI()
     }
 
     override fun onResume() {
@@ -178,55 +196,50 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(positionUpdateReceiver)
     }
 
-    // --- Orientation Change Handling ---
     private fun onRotationChanged(rotation: Int) {
         updateOrientationUI(rotation)
         updateDiagnosticLabels()
 
         if (VisualizerService.isRunning) {
-            if (isAutoMode) {
-                setAutoMode()
-            } else {
-                // If not auto, just resend the current manual position to fix layout
-                sendPositionCommand(currentMode)
-            }
+            handler.postDelayed({
+                toggleService()
+                handler.postDelayed({
+                    toggleService()
+                }, 50)
+            }, 50)
         }
     }
 
     private fun updateOrientationUI(rotation: Int) {
+        val orientationText = when (rotation) {
+            Surface.ROTATION_0 -> "PORTRAIT"
+            Surface.ROTATION_90 -> "LANDSCAPE (LEFT)"
+            Surface.ROTATION_180 -> "PORTRAIT (UPSIDE DOWN)"
+            Surface.ROTATION_270 -> "LANDSCAPE (RIGHT)"
+            else -> "UNKNOWN"
+        }
+        tvOrientation.text = "Orientation: $orientationText"
+
         when (rotation) {
-            Surface.ROTATION_0 -> { // Portrait
-                tvOrientation.text = "Orientation: Portrait"
-                tvCameraLabel.text = "Camera Section"
-                tvNavbarLabel.text = "Navbar Section"
+            Surface.ROTATION_0 -> {
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_up)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_down)
             }
-            Surface.ROTATION_90 -> { // Landscape (Rotated Left)
-                tvOrientation.text = "Orientation: Landscape (Left)"
-                tvCameraLabel.text = "Camera Section"
-                tvNavbarLabel.text = "Navbar Section"
+            Surface.ROTATION_90 -> {
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_left)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_right)
             }
-            Surface.ROTATION_180 -> { // Portrait (Upside Down)
-                tvOrientation.text = "Orientation: Portrait (Upside Down)"
-                tvCameraLabel.text = "Camera Section (was Navbar)"
-                tvNavbarLabel.text = "Navbar Section (was Camera)"
+            Surface.ROTATION_180 -> {
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_down)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_up)
             }
-            Surface.ROTATION_270 -> { // Landscape (Rotated Right)
-                tvOrientation.text = "Orientation: Landscape (Right)"
-                tvCameraLabel.text = "Camera Section"
-                tvNavbarLabel.text = "Navbar Section"
+            Surface.ROTATION_270 -> {
                 ivCameraArrow.setImageResource(R.drawable.ic_arrow_right)
                 ivNavbarArrow.setImageResource(R.drawable.ic_arrow_left)
             }
         }
     }
 
-    // --- Permission Handling (Unchanged) ---
     private fun checkPermissions() {
         hasAudioPermission = ContextCompat.checkSelfPermission(
             this,
@@ -290,11 +303,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    // --- UI Update Functions ---
-
     private fun updateUI() {
         if (hasAudioPermission && hasOverlayPermission) {
-            tvPermissionStatus.text = "All permissions granted"
+            tvPermissionStatus.text = "All permissions granted."
             btnToggleService.isEnabled = true
         } else {
             var status = "Permissions required:\n"
@@ -305,9 +316,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnToggleService.text = if (VisualizerService.isRunning) {
-            "Stop Visualizer"
+            "STOP VISUALIZER"
         } else {
-            "Start Visualizer"
+            "START VISUALIZER"
         }
         updateDiagnosticLabels()
     }
@@ -324,28 +335,34 @@ class MainActivity : AppCompatActivity() {
         tvActualPosition.text = "Actual Position: $actualPosition"
     }
 
-    // --- Service Control ---
     private fun toggleService() {
         val intent = Intent(this, VisualizerService::class.java)
         if (VisualizerService.isRunning) {
             stopService(intent)
-            actualPosition = "Stopped"
+            actualPosition = "STOPPED"
         } else {
-            isAutoMode = true
-            currentMode = "Auto"
-            actualPosition = "Starting..."
+            val startPos = if (isAutoMode) {
+                val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
+                getAutoPosition(display.rotation)
+            } else {
+                currentMode
+            }
+
+            actualPosition = "STARTING..."
             updateAutoButtonUI()
 
-            val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-            intent.putExtra("POSITION", getAutoPosition(display.rotation))
+            intent.putExtra("POSITION", startPos)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
                 startService(intent)
             }
-            // Send the initial color when starting
-            handler.postDelayed({ sendColorCommand(currentSelectedColor) }, 100)
+
+            handler.postDelayed({
+                sendColorCommand(currentSelectedColor)
+                sendMirroredCommand()
+            }, 100)
         }
         btnToggleService.postDelayed({ updateUI() }, 100)
     }
@@ -360,7 +377,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Button Click Handlers ---
     private fun setManualPosition(position: String) {
         isAutoMode = false
         currentMode = position
@@ -371,7 +387,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setAutoMode() {
         isAutoMode = true
-        currentMode = "Auto"
+        currentMode = "AUTO"
         updateAutoButtonUI()
         updateDiagnosticLabels()
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
@@ -382,10 +398,8 @@ class MainActivity : AppCompatActivity() {
         btnAuto.isEnabled = !isAutoMode
     }
 
-    // --- Broadcast Functions ---
     private fun sendPositionCommand(position: String) {
         if (!VisualizerService.isRunning) {
-            Toast.makeText(this, "Start the service first", Toast.LENGTH_SHORT).show()
             return
         }
         val intent = Intent(VisualizerService.ACTION_UPDATE_POSITION)
@@ -394,31 +408,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendColorCommand(color: Int) {
-        if (!VisualizerService.isRunning) return // Don't send if service isn't on
+        if (!VisualizerService.isRunning) return
 
         val intent = Intent(VisualizerService.ACTION_UPDATE_COLOR)
         intent.putExtra("COLOR", color)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    // --- NEW: Color Picker Logic ---
+    private fun sendMirroredCommand() {
+        if (!VisualizerService.isRunning) return
+        val intent = Intent(VisualizerService.ACTION_UPDATE_MIRRORED)
+        intent.putExtra("IS_MIRROR_VERT", isMirrorVert)
+        intent.putExtra("IS_MIRROR_HORIZ", isMirrorHoriz)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
 
     private fun updateColorUI() {
         val hexColor = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
-
-        // Update preview box
-        // Use a GradientDrawable to be safe, as it's what color_swatch.xml defines
         val drawable = colorPreviewBox.background.mutate()
         if (drawable is GradientDrawable) {
             drawable.setColor(currentSelectedColor)
         } else {
-            // Fallback for other drawable types
             val wrappedDrawable = DrawableCompat.wrap(drawable)
             DrawableCompat.setTint(wrappedDrawable, currentSelectedColor)
             colorPreviewBox.background = wrappedDrawable
         }
 
-        // Update EditText without triggering the listener
         etHexCode.removeTextChangedListener(hexTextWatcher)
         etHexCode.setText(hexColor)
         etHexCode.addTextChangedListener(hexTextWatcher)
@@ -428,10 +443,8 @@ class MainActivity : AppCompatActivity() {
         etHexCode.addTextChangedListener(hexTextWatcher)
         etHexCode.setOnEditorActionListener { v, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                // User pressed done on keyboard, validate and send
                 val hex = etHexCode.text.toString()
                 if (parseAndSetColor(hex, true)) {
-                    // Hide keyboard
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
                     imm.hideSoftInputFromWindow(v.windowToken, 0)
                     v.clearFocus()
@@ -447,17 +460,11 @@ class MainActivity : AppCompatActivity() {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         override fun afterTextChanged(s: Editable?) {
-            // Live update as user types
             val hex = s.toString()
-            parseAndSetColor(hex, false) // Don't send command on every keystroke
+            parseAndSetColor(hex, false)
         }
     }
 
-    /**
-     * Parses a hex string and updates the color.
-     * @param sendCommand If true, sends the color to the service.
-     * @return true if parsing was successful, false otherwise.
-     */
     private fun parseAndSetColor(hex: String, sendCommand: Boolean): Boolean {
         val fullHex = if (hex.startsWith("#")) hex else "#$hex"
         return try {
@@ -469,7 +476,6 @@ class MainActivity : AppCompatActivity() {
             }
             true
         } catch (e: IllegalArgumentException) {
-            // Invalid hex, set preview to gray
             (colorPreviewBox.background as? GradientDrawable)?.setColor(Color.GRAY)
             false
         }
@@ -479,25 +485,39 @@ class MainActivity : AppCompatActivity() {
         val dialog = Dialog(this, R.style.ColorPickerDialogTheme)
         dialog.setContentView(R.layout.dialog_color_picker)
 
-        val dialogGrid = dialog.findViewById<GridLayout>(R.id.color_grid) // Use the new ID
+        val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container) // Use the new ID
+        val btnSelect = dialog.findViewById<Button>(R.id.btn_dialog_select)
         var dialogSelectedColor = currentSelectedColor
-        var selectedSwatch: View? = null
 
-        // Add checkmark to the currently selected color
-        for (swatch in dialogGrid.children) {
-            val swatchColor = (swatch.background as? ColorDrawable)?.color
-            if (swatchColor == currentSelectedColor) {
-                // TODO: Add a checkmark drawable
-                selectedSwatch = swatch
+        btnSelect.setBackgroundColor(dialogSelectedColor)
+
+        // Iterate through the 5 rows (LinearLayouts)
+        // The container now has the included layout, which is the root
+        val gridRoot = container.getChildAt(0) as? LinearLayout // This is the layout from color_picker_grid.xml
+
+        if (gridRoot != null) {
+            for (i in 0 until gridRoot.childCount) {
+                val row = gridRoot.getChildAt(i) as? LinearLayout
+                if (row != null) {
+                    for (j in 0 until row.childCount) {
+                        val swatch = row.getChildAt(j)
+                        swatch.setOnClickListener {
+                            val color = (it.background as? ColorDrawable)?.color
+                            if (color != null) {
+                                dialogSelectedColor = color
+                                btnSelect.setBackgroundColor(color)
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // Set listeners for dialog buttons
         dialog.findViewById<Button>(R.id.btn_dialog_cancel).setOnClickListener {
             dialog.dismiss()
         }
 
-        dialog.findViewById<Button>(R.id.btn_dialog_select).setOnClickListener {
+        btnSelect.setOnClickListener {
             currentSelectedColor = dialogSelectedColor
             updateColorUI()
             sendColorCommand(currentSelectedColor)
@@ -505,25 +525,5 @@ class MainActivity : AppCompatActivity() {
         }
 
         dialog.show()
-    }
-
-    // This is needed for the XML onClick="onDialogColorSwatchClicked"
-    fun onDialogColorSwatchClicked(view: View) {
-        val color = (view.background as? ColorDrawable)?.color
-        if (color != null) {
-            // When a swatch is clicked, update the main UI's hex box immediately
-            currentSelectedColor = color
-            updateColorUI()
-
-            // We can also dismiss the dialog immediately if we want
-            // Or, we can just update a 'selected' state inside the dialog
-            // For now, let's update the main UI and send the command
-            sendColorCommand(currentSelectedColor)
-
-            // To close the dialog, we need its instance.
-            // This is complex. Let's adjust showColorPickerDialog...
-
-            // --- This function is a bit broken, let's fix showColorPickerDialog ---
-        }
     }
 }

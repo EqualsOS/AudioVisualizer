@@ -45,13 +45,21 @@ class VisualizerService : Service() {
         }
     }
 
-    // NEW Receiver for color
     private val colorReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_UPDATE_COLOR) {
                 val color = intent.getIntExtra("COLOR", Color.WHITE)
-                Log.d(TAG, "Received color command: $color")
                 visualizerView?.setColor(color)
+            }
+        }
+    }
+
+    private val mirroredReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_UPDATE_MIRRORED) {
+                val isMirrorVert = intent.getBooleanExtra("IS_MIRROR_VERT", false)
+                val isMirrorHoriz = intent.getBooleanExtra("IS_MIRROR_HORIZ", false)
+                visualizerView?.setMirrored(isMirrorVert, isMirrorHoriz)
             }
         }
     }
@@ -59,10 +67,10 @@ class VisualizerService : Service() {
     // --- Watchdog for empty audio ---
     private val handler = Handler(Looper.getMainLooper())
     private var lastFftTime: Long = 0
-    private val fftTimeout = 150L // 150ms
+    private val fftTimeout = 150L
     private val clearBarsRunnable = Runnable {
         if (System.currentTimeMillis() - lastFftTime > fftTimeout) {
-            visualizerView?.updateVisualizer(ByteArray(0)) // Send empty array
+            visualizerView?.updateVisualizer(ByteArray(0))
         }
     }
 
@@ -72,11 +80,11 @@ class VisualizerService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val TAG = "VisualizerService"
 
-        // Actions for broadcast
         const val ACTION_SERVICE_STOPPED = "com.equalsos.audiovisualizer.ACTION_SERVICE_STOPPED"
         const val ACTION_UPDATE_POSITION = "com.equalsos.audiovisualizer.ACTION_UPDATE_POSITION"
         const val ACTION_POSITION_UPDATED = "com.equalsos.audiovisualizer.ACTION_POSITION_UPDATED"
-        const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR" // New action
+        const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR"
+        const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -88,15 +96,11 @@ class VisualizerService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
 
-        // Register receivers
-        val positionFilter = IntentFilter(ACTION_UPDATE_POSITION)
-        LocalBroadcastManager.getInstance(this).registerReceiver(positionReceiver, positionFilter)
-
-        val colorFilter = IntentFilter(ACTION_UPDATE_COLOR) // Register new receiver
-        LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, colorFilter)
+        LocalBroadcastManager.getInstance(this).registerReceiver(positionReceiver, IntentFilter(ACTION_UPDATE_POSITION))
+        LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, IntentFilter(ACTION_UPDATE_COLOR))
+        LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
 
         isRunning = true
-        Log.d(TAG, "onCreate: Service starting...")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -105,7 +109,7 @@ class VisualizerService : Service() {
         if (floatingView == null) {
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
             showOverlay(initialPosition)
-            startVisualizer()
+            startVisualizer() // Try starting immediately
         }
 
         return START_STICKY
@@ -147,7 +151,8 @@ class VisualizerService : Service() {
 
         try {
             windowManager.addView(floatingView, currentParams)
-            broadcastActualPosition(position) // Send initial position
+            // Send the initial position broadcast with a slight delay to ensure MainActivity is ready
+            handler.postDelayed({ broadcastActualPosition(position) }, 100)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -177,7 +182,7 @@ class VisualizerService : Service() {
         try {
             windowManager.updateViewLayout(floatingView, newParams)
             currentParams = newParams
-            broadcastActualPosition(position) // Send updated position
+            broadcastActualPosition(position)
         } catch (e: Exception) {
             Log.e(TAG, "Error updating view layout", e)
         }
@@ -252,7 +257,7 @@ class VisualizerService : Service() {
                 )
                 params.gravity = Gravity.RIGHT
             }
-            else -> { // Default to BOTTOM
+            else -> {
                 visualizerView?.setOrientation(
                     VisualizerView.Orientation.VERTICAL,
                     VisualizerView.DrawDirection.LEFT_TO_RIGHT
@@ -263,6 +268,11 @@ class VisualizerService : Service() {
                 )
                 params.gravity = Gravity.BOTTOM
             }
+        }
+
+        // Allow drawing into display cutouts
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
 
         params.x = 0
@@ -295,8 +305,8 @@ class VisualizerService : Service() {
                         ) {
                             if (fft != null) {
                                 visualizerView?.updateVisualizer(fft)
-                                lastFftTime = System.currentTimeMillis() // Update watchdog
-                                handler.postDelayed(clearBarsRunnable, fftTimeout + 10) // Check again after timeout
+                                lastFftTime = System.currentTimeMillis()
+                                handler.postDelayed(clearBarsRunnable, fftTimeout + 10)
                             }
                         }
                     },
@@ -308,6 +318,8 @@ class VisualizerService : Service() {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            // Retry initialization if it fails (e.g. audio session not ready)
+            handler.postDelayed({ startVisualizer() }, 1000)
         }
     }
 
@@ -322,13 +334,12 @@ class VisualizerService : Service() {
 
         isRunning = false
         Log.d(TAG, "onDestroy: Service stopping.")
-        handler.removeCallbacks(clearBarsRunnable) // Stop watchdog
+        handler.removeCallbacksAndMessages(null)
 
-        // Notify MainActivity that service has stopped
         LocalBroadcastManager.getInstance(this).sendBroadcast(Intent(ACTION_SERVICE_STOPPED))
 
-        // Unregister receivers
         LocalBroadcastManager.getInstance(this).unregisterReceiver(positionReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver) // Unregister new receiver
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
     }
 }

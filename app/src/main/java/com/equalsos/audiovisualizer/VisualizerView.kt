@@ -8,46 +8,41 @@ import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.View
 import kotlin.math.log10
-import kotlin.math.max
 
 class VisualizerView(context: Context, attrs: AttributeSet?) :
     View(context, attrs), Choreographer.FrameCallback {
 
-    // --- State ---
     private var targetBarHeights: FloatArray? = null
     private var currentBarHeights: FloatArray? = null
     private var orientation: Orientation = Orientation.VERTICAL
     private var drawDirection: DrawDirection = DrawDirection.LEFT_TO_RIGHT
-    private var numBars = 32 // Default number of bars
+    private var numBars = 32
+    private var isMirrorVert = false
+    private var isMirrorHoriz = false
 
-    // --- Animation ---
     private val paint = Paint()
     private var lastFrameTime: Long = 0
-    private val fallSpeed = 0.3f // Pixels per millisecond
-    private val riseSpeed = 0.9f // Pixels per millisecond
+    private val fallSpeed = 0.3f
+    private val riseSpeed = 0.9f
 
-    // --- Drawing Enums ---
     enum class Orientation { VERTICAL, HORIZONTAL }
     enum class DrawDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT }
 
     init {
-        paint.color = Color.parseColor("#26a269") // Default to green
+        paint.color = Color.parseColor("#26a269")
         paint.style = Paint.Style.FILL
-        // Start the animation loop
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    /**
-     * Public method to update the bar color.
-     */
     fun setColor(color: Int) {
         paint.color = color
     }
 
-    /**
-     * This is the "game loop" (the requestAnimationFrame equivalent).
-     * It runs every single frame to animate the bars smoothly.
-     */
+    fun setMirrored(vert: Boolean, horiz: Boolean) {
+        isMirrorVert = vert
+        isMirrorHoriz = horiz
+    }
+
     override fun doFrame(frameTimeNanos: Long) {
         if (lastFrameTime == 0L) {
             lastFrameTime = frameTimeNanos
@@ -60,7 +55,6 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         val targets = targetBarHeights
         var current = currentBarHeights
 
-        // Ensure current heights array is initialized
         if (targets != null && current == null) {
             current = FloatArray(numBars) { 0f }
             currentBarHeights = current
@@ -72,14 +66,12 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
                 val targetHeight = targets[i]
 
                 if (currentHeight < targetHeight) {
-                    // Rise up
                     val newHeight = (currentHeight + riseSpeed * deltaTimeMillis).coerceAtMost(targetHeight)
                     if (current[i] != newHeight) {
                         current[i] = newHeight
                         needsRedraw = true
                     }
                 } else if (currentHeight > targetHeight) {
-                    // Fall down
                     val newHeight = (currentHeight - fallSpeed * deltaTimeMillis).coerceAtLeast(targetHeight)
                     if (current[i] != newHeight) {
                         current[i] = newHeight
@@ -89,19 +81,13 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
             }
         }
 
-        // If any bar moved, redraw the view
         if (needsRedraw) {
             invalidate()
         }
 
-        // Schedule the next frame
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    /**
-     * Called by the service to update the *target* heights based on new audio data.
-     * This does NOT redraw the view directly.
-     */
     fun updateVisualizer(bytes: ByteArray) {
         val data = bytes
 
@@ -109,29 +95,26 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
             targetBarHeights = FloatArray(numBars) { 0f }
         }
 
-        // If we receive an empty array (from the watchdog), set all targets to 0
         if (data.isEmpty()) {
             for (i in 0 until numBars) {
                 targetBarHeights?.set(i, 0f)
             }
-            return // Done
+            return
         }
 
-        // --- Logarithmic mapping from original code ---
         val dataPointsToUse = data.size / 2 - 1
-        if (dataPointsToUse <= 0) return // Not enough data
+        if (dataPointsToUse <= 0) return
 
-        val minFreq = 1 // Start from the 1st bin (skip 0/DC)
+        val minFreq = 1
         val maxFreq = dataPointsToUse
         val logMin = log10(minFreq.toDouble())
         val logMax = log10(maxFreq.toDouble())
         val logRange = logMax - logMin
 
-        val maxMagnitude = 25000f // Empirical max magnitude for scaling
+        val maxMagnitude = 25000f
         val maxHeight = if (orientation == Orientation.VERTICAL) height else width
 
         for (i in 0 until numBars) {
-            // Map bar index to log scale
             val logStart = logMin + (logRange / numBars) * i
             val logEnd = logMin + (logRange / numBars) * (i + 1)
 
@@ -142,7 +125,7 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
             var count = 0
 
             for (j in startIndex..endIndex) {
-                if (j*2 + 1 >= data.size) break // Bound check
+                if (j*2 + 1 >= data.size) break
 
                 val dataIndex = j * 2
                 val real = data[dataIndex].toInt()
@@ -154,13 +137,10 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
 
             val avgMagnitude = if (count > 0) (magnitudeSum / count).toFloat() else 0f
 
-            // Scale the height
             val targetHeight = (avgMagnitude / maxMagnitude) * maxHeight
 
-            // Set the target height (we'll animate to this in doFrame)
             targetBarHeights?.set(i, targetHeight.coerceAtMost(maxHeight.toFloat()))
         }
-        // Do not call invalidate() here. The Choreographer loop will handle it.
     }
 
     fun setOrientation(orientation: Orientation, drawDirection: DrawDirection) {
@@ -168,10 +148,6 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         this.drawDirection = drawDirection
     }
 
-    /**
-     * The main draw loop. This just reads the *current* heights and draws.
-     * All the animation logic is in doFrame().
-     */
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
@@ -191,37 +167,53 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         val effectiveBarWidth = barWidth - barPadding
 
         for (i in 0 until numBars) {
+            val heightIndex = if (isMirrorHoriz) (numBars - 1) - i else i
+
             val left = i * barWidth + (barPadding / 2)
             val right = left + effectiveBarWidth
 
-            val barHeight = heights[i]
-            val top = height - barHeight
-            val bottom = height.toFloat()
+            val barHeight = heights[heightIndex]
+
+            val top: Float
+            val bottom: Float
+
+            if (isMirrorVert) {
+                top = 0f
+                bottom = barHeight
+            } else {
+                top = height - barHeight
+                bottom = height.toFloat()
+            }
 
             canvas.drawRect(left, top, right, bottom, paint)
         }
     }
 
     private fun drawHorizontal(canvas: Canvas, heights: FloatArray) {
-        val barWidth = height.toFloat() / numBars // Bars are horizontal, so width is based on view height
+        val barWidth = height.toFloat() / numBars
         val barPadding = barWidth * 0.1f
         val effectiveBarWidth = barWidth - barPadding
 
         for (i in 0 until numBars) {
+            val heightIndex = if (isMirrorHoriz) (numBars - 1) - i else i
+
             val top = i * barWidth + (barPadding / 2)
             val bottom = top + effectiveBarWidth
 
-            val barHeight = heights[i] // This is now "length"
+            val barHeight = heights[heightIndex]
 
             val left: Float
             val right: Float
 
-            if (drawDirection == DrawDirection.LEFT_TO_RIGHT) {
-                // Drawing from the LEFT edge (e.g., ROTATION_270)
+            var effectiveDirection = drawDirection
+            if (isMirrorVert) {
+                effectiveDirection = if (drawDirection == DrawDirection.LEFT_TO_RIGHT) DrawDirection.RIGHT_TO_LEFT else DrawDirection.LEFT_TO_RIGHT
+            }
+
+            if (effectiveDirection == DrawDirection.LEFT_TO_RIGHT) {
                 left = 0f
                 right = barHeight
             } else {
-                // Drawing from the RIGHT edge (e.g., ROTATION_90)
                 left = width - barHeight
                 right = width.toFloat()
             }
