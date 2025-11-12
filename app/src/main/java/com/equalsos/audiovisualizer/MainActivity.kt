@@ -23,6 +23,7 @@ import android.text.Editable
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan // Added
 import android.text.style.StyleSpan
 import android.util.Log
 import android.view.OrientationEventListener
@@ -33,20 +34,15 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CompoundButton
 import android.widget.EditText
-import android.widget.ImageButton // Added
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -69,7 +65,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etHexCode: EditText
     private lateinit var tvColorLabel: TextView
     private var currentSelectedColor: Int = Color.parseColor("#26a269")
-    private var translatedColorWord: String = "Color"
 
     // Mirrored Switches
     private lateinit var switchMirrorVert: SwitchMaterial
@@ -126,31 +121,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 1. Tell the system we are handling edge-to-edge drawing
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-
         setContentView(R.layout.activity_main)
-
-        // 2. Find the layout and apply safe area insets as padding
-        val mainContentLayout: LinearLayout = findViewById(R.id.main_content_layout)
-        val paddingDp = 16
-        val density = resources.displayMetrics.density
-        val paddingPx = (paddingDp * density).toInt()
-
-        ViewCompat.setOnApplyWindowInsetsListener(mainContentLayout) { view, insets ->
-            val systemBarInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-            // Apply the insets as padding, plus our original 16dp padding
-            view.setPadding(
-                systemBarInsets.left + paddingPx,
-                systemBarInsets.top + paddingPx,
-                systemBarInsets.right + paddingPx,
-                systemBarInsets.bottom + paddingPx
-            )
-
-            WindowInsetsCompat.CONSUMED
-        }
 
         btnToggleService = findViewById(R.id.btnToggleService)
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
@@ -166,9 +137,11 @@ class MainActivity : AppCompatActivity() {
         etHexCode = findViewById(R.id.et_hex_code)
         tvColorLabel = findViewById(R.id.tv_color_label)
 
-        // Set localized label for "Color" and store it
-        translatedColorWord = getString(R.string.label_color)
-        tvColorLabel.text = translatedColorWord
+        // Try to use localized string, fallback if missing
+        val labelResId = resources.getIdentifier("label_color", "string", packageName)
+        if (labelResId != 0) {
+            tvColorLabel.text = getString(labelResId)
+        }
 
         switchMirrorVert = findViewById(R.id.switch_mirror_vert)
         switchMirrorHoriz = findViewById(R.id.switch_mirror_horiz)
@@ -390,7 +363,25 @@ class MainActivity : AppCompatActivity() {
             btnToggleService.setIconResource(R.drawable.ic_play_arrow_24)
         }
 
-        tvVisualizerStatus.text = "Visualizer Status: $visualizerStatus"
+        // --- NEW: Status Color Logic ---
+        val fullStatusText = "Visualizer Status: $visualizerStatus"
+        val spannableStatus = SpannableString(fullStatusText)
+
+        val statusColor = when {
+            visualizerStatus == "ACTIVE" -> Color.GREEN
+            visualizerStatus.startsWith("STARTING") || visualizerStatus.startsWith("RETRYING") -> Color.parseColor("#FFA500") // Orange
+            else -> Color.RED // STOPPED or ERROR
+        }
+
+        spannableStatus.setSpan(
+            ForegroundColorSpan(statusColor),
+            19, // Start of status value
+            fullStatusText.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+
+        tvVisualizerStatus.text = spannableStatus
+
         updateDiagnosticLabels()
     }
 
@@ -558,17 +549,11 @@ class MainActivity : AppCompatActivity() {
         val dialog = Dialog(this, R.style.ColorPickerDialogTheme)
         dialog.setContentView(R.layout.dialog_color_picker)
 
-        val dialogTitle = dialog.findViewById<TextView>(R.id.dialog_title)
-        // Use the new string resource and pass in the translated word
-        val titleText = getString(R.string.dialog_color_title, translatedColorWord)
-        dialogTitle.text = titleText
-
         val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container)
         val dialogPreviewBox = dialog.findViewById<View>(R.id.dialog_preview_box)
         val dialogHexCode = dialog.findViewById<TextView>(R.id.dialog_hex_code)
         val btnCopy = dialog.findViewById<ImageButton>(R.id.btn_dialog_copy)
 
-        // Init dialog UI
         updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor)
 
         if (container != null) {
@@ -577,16 +562,22 @@ class MainActivity : AppCompatActivity() {
                 if (row != null) {
                     for (j in 0 until row.childCount) {
                         val swatch = row.getChildAt(j)
-                        if (swatch.backgroundTintList != null) {
-                            val color = swatch.backgroundTintList?.defaultColor
-                            if (color != null) {
-                                swatch.setOnClickListener {
-                                    // Live update everything on click
-                                    currentSelectedColor = color
-                                    updateColorUI() // Update Main Activity UI
-                                    sendColorCommand(currentSelectedColor) // Update Service
-                                    updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor) // Update Dialog UI
-                                }
+                        // Explicitly setting OnClickListener here on the View
+                        swatch.setOnClickListener {
+                            // Get color from backgroundTint if possible, else background
+                            var color = 0
+                            if (swatch.backgroundTintList != null) {
+                                color = swatch.backgroundTintList!!.defaultColor
+                            } else if (swatch.background is ColorDrawable) {
+                                color = (swatch.background as ColorDrawable).color
+                            }
+
+                            if (color != 0) {
+                                // Live update
+                                currentSelectedColor = color
+                                updateColorUI()
+                                sendColorCommand(currentSelectedColor)
+                                updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor)
                             }
                         }
                     }
