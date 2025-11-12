@@ -169,14 +169,16 @@ class MainActivity : AppCompatActivity() {
         tvColorLabel.setOnClickListener(colorClickListener)
         setupHexCodeListener()
 
+        // --- MODIFIED SWITCH LISTENERS ---
         switchMirrorVert.setOnCheckedChangeListener { _, isChecked ->
             isMirrorVert = isChecked
-            sendMirroredCommand()
+            sendMirroredCommand(getCurrentTargetPosition())
         }
         switchMirrorHoriz.setOnCheckedChangeListener { _, isChecked ->
             isMirrorHoriz = isChecked
-            sendMirroredCommand()
+            sendMirroredCommand(getCurrentTargetPosition())
         }
+        // --- END MODIFIED SWITCH LISTENERS ---
 
         val serviceIntentFilter = IntentFilter(VisualizerService.ACTION_SERVICE_STOPPED)
         LocalBroadcastManager.getInstance(this).registerReceiver(serviceStateReceiver, serviceIntentFilter)
@@ -193,8 +195,6 @@ class MainActivity : AppCompatActivity() {
                 val currentRotation = display.rotation
 
                 if (currentRotation != lastRotation) {
-                    // This check prevents infinite loops
-                    // And only triggers when rotation *actually* changes
                     lastRotation = currentRotation
                     onRotationChanged(currentRotation)
                 }
@@ -206,7 +206,6 @@ class MainActivity : AppCompatActivity() {
         updateColorUI()
     }
 
-    // --- THIS IS THE FIXED FUNCTION ---
     override fun onResume() {
         super.onResume()
         checkPermissions()
@@ -215,21 +214,13 @@ class MainActivity : AppCompatActivity() {
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
         val currentRotation = display.rotation
 
-        // We set lastRotation here to prevent the listener from firing
-        // immediately after, but we *still* call onRotationChanged
-        // to sync the service to the *current* state.
         lastRotation = currentRotation
-
-        // Manually trigger the rotation change logic on resume
-        // to sync the service with the activity's current state.
-        // This handles the case where the activity is recreated in a new orientation.
-        onRotationChanged(currentRotation)
+        onRotationChanged(currentRotation) // Trigger rotation logic on resume
 
         if (orientationEventListener.canDetectOrientation()) {
             orientationEventListener.enable()
         }
     }
-    // --- END OF FIX ---
 
     override fun onPause() {
         super.onPause()
@@ -248,11 +239,13 @@ class MainActivity : AppCompatActivity() {
         updateDiagnosticLabels()
 
         if (VisualizerService.isRunning) {
-            if (isAutoMode) {
-                sendPositionCommand(getAutoPosition(rotation))
+            val targetPosition = if (isAutoMode) {
+                getAutoPosition(rotation)
             } else {
-                sendPositionCommand(currentMode)
+                currentMode
             }
+            sendPositionCommand(targetPosition)
+            sendMirroredCommand(targetPosition) // Pass the target position to determine mirroring
         }
     }
 
@@ -439,7 +432,7 @@ class MainActivity : AppCompatActivity() {
 
             handler.postDelayed({
                 sendColorCommand(currentSelectedColor)
-                sendMirroredCommand()
+                sendMirroredCommand(startPos) // Pass startPos for initial mirroring logic
             }, 100)
         }
         btnToggleService.postDelayed({ updateUI() }, 100)
@@ -448,12 +441,22 @@ class MainActivity : AppCompatActivity() {
     private fun getAutoPosition(rotation: Int): String {
         return when (rotation) {
             Surface.ROTATION_0 -> "BOTTOM"
-            Surface.ROTATION_90 -> "RIGHT"
-            Surface.ROTATION_270 -> "LEFT"
+            Surface.ROTATION_90 -> "RIGHT" // Landscape Left
+            Surface.ROTATION_270 -> "LEFT" // Landscape Right
             Surface.ROTATION_180 -> "TOP"
             else -> "BOTTOM"
         }
     }
+
+    // --- NEW HELPER FUNCTION ---
+    private fun getCurrentTargetPosition(): String {
+        return if (isAutoMode) {
+            getAutoPosition(lastRotation)
+        } else {
+            currentMode
+        }
+    }
+    // --- END NEW HELPER FUNCTION ---
 
     private fun setManualPosition(position: String) {
         isAutoMode = false
@@ -461,6 +464,7 @@ class MainActivity : AppCompatActivity() {
         updateAutoButtonUI()
         updateDiagnosticLabels()
         sendPositionCommand(position)
+        sendMirroredCommand(position) // Apply mirroring logic for manual positions too
     }
 
     private fun setAutoMode() {
@@ -469,7 +473,9 @@ class MainActivity : AppCompatActivity() {
         updateAutoButtonUI()
         updateDiagnosticLabels()
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-        sendPositionCommand(getAutoPosition(display.rotation))
+        val targetPosition = getAutoPosition(display.rotation)
+        sendPositionCommand(targetPosition)
+        sendMirroredCommand(targetPosition) // Apply mirroring logic for auto mode
     }
 
     private fun updateAutoButtonUI() {
@@ -493,13 +499,28 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    private fun sendMirroredCommand() {
+    // --- MODIFIED FUNCTION (XOR LOGIC) ---
+    private fun sendMirroredCommand(position: String) {
         if (!VisualizerService.isRunning) return
+
+        // 1. Determine the base mirror state for the orientation
+        //    (Only RIGHT position is mirrored by default)
+        val baseMirror = (position == "RIGHT")
+
+        // 2. Use XOR to toggle the base state with the user's switch
+        //    (baseMirror)  (isMirrorHoriz)  (Result)
+        //    false (LEFT)  false (OFF)      false
+        //    false (LEFT)  true (ON)        true
+        //    true (RIGHT)  false (OFF)      true
+        //    true (RIGHT)  true (ON)        false  <-- This is the "additional flip"
+        val finalIsMirrorHoriz = baseMirror xor isMirrorHoriz
+
         val intent = Intent(VisualizerService.ACTION_UPDATE_MIRRORED)
         intent.putExtra("IS_MIRROR_VERT", isMirrorVert)
-        intent.putExtra("IS_MIRROR_HORIZ", isMirrorHoriz)
+        intent.putExtra("IS_MIRROR_HORIZ", finalIsMirrorHoriz)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun updateColorUI() {
         val hexColor = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
