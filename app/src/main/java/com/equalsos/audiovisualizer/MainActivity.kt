@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var isAutoMode = true
     private var currentMode = "AUTO"
 
-    // --- COMPANION OBJECT ---
+    // --- MODIFIED COMPANION OBJECT ---
     companion object {
         var actualPosition = "STOPPED"
         var visualizerStatus = "STOPPED"
@@ -102,8 +102,9 @@ class MainActivity : AppCompatActivity() {
         const val KEY_MIRROR_VERT = "mirrorVert"
         const val KEY_MIRROR_HORIZ = "mirrorHoriz"
         const val KEY_MODE = "mode"
+        const val KEY_SERVICE_ENABLED = "serviceEnabled" // <-- NEW KEY
     }
-    // --- END COMPANION ---
+    // --- END MODIFIED ---
 
     private lateinit var orientationEventListener: OrientationEventListener
     private var lastRotation: Int = -1
@@ -255,7 +256,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         checkPermissions()
-        updateUI()
+        updateUI() // This will now trigger the auto-start logic if conditions are met
 
         val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
         val currentRotation = display.rotation
@@ -290,6 +291,7 @@ class MainActivity : AppCompatActivity() {
         isMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
         currentMode = prefs.getString(KEY_MODE, "AUTO") ?: "AUTO"
         isAutoMode = (currentMode == "AUTO")
+        // NOTE: We don't load KEY_SERVICE_ENABLED here, it's checked independently
     }
 
     private fun saveNumBars(numBars: Int) {
@@ -314,7 +316,18 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_MODE, mode).apply()
     }
-    // --- END HELPER FUNCTIONS ---
+
+    // --- NEW: Save/Load Service Enabled State ---
+    private fun saveServiceEnabled(isEnabled: Boolean) {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SERVICE_ENABLED, isEnabled).apply()
+    }
+
+    private fun loadServiceEnabled(): Boolean {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SERVICE_ENABLED, false) // Default to false
+    }
+    // --- END NEW ---
 
     private fun onRotationChanged(rotation: Int) {
         updateOrientationUI(rotation)
@@ -423,6 +436,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    // --- MODIFIED FUNCTION ---
     private fun updateUI() {
         if (hasAudioPermission && hasOverlayPermission) {
             tvPermissionStatus.text = "All permissions granted."
@@ -462,7 +476,17 @@ class MainActivity : AppCompatActivity() {
         tvVisualizerStatus.text = spannableStatus
 
         updateDiagnosticLabels()
+
+        // --- NEW AUTO-START LOGIC ---
+        // If the button is enabled (permissions are granted)
+        // AND the service *should* be running (based on prefs)
+        // AND the service is *not* currently running...
+        if (btnToggleService.isEnabled && loadServiceEnabled() && !VisualizerService.isRunning) {
+            toggleService() // ...then start it.
+        }
+        // --- END NEW AUTO-START LOGIC ---
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun updateDiagnosticLabels() {
         val expected: String = if (isAutoMode) {
@@ -480,10 +504,15 @@ class MainActivity : AppCompatActivity() {
     private fun toggleService() {
         val intent = Intent(this, VisualizerService::class.java)
         if (VisualizerService.isRunning) {
+            // --- USER IS STOPPING SERVICE ---
+            saveServiceEnabled(false) // <-- SAVE STATE
             stopService(intent)
             actualPosition = "STOPPED"
             visualizerStatus = "STOPPED"
         } else {
+            // --- USER IS STARTING SERVICE ---
+            saveServiceEnabled(true) // <-- SAVE STATE
+
             val startPos = if (isAutoMode) {
                 val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
                 getAutoPosition(display.rotation)
@@ -495,8 +524,6 @@ class MainActivity : AppCompatActivity() {
             visualizerStatus = "STARTING..."
             updateAutoButtonUI()
 
-            // Pass the initial position, but nothing else.
-            // The service will load all other settings from SharedPreferences.
             intent.putExtra("POSITION", startPos)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -505,13 +532,11 @@ class MainActivity : AppCompatActivity() {
                 startService(intent)
             }
 
-            // --- MODIFIED: Send initial settings on a delay ---
-            // This ensures the service's receivers are registered and ready
+            // Send initial settings on a delay
             handler.postDelayed({
                 sendColorCommand(currentSelectedColor)
-                sendNumBarsCommand(currentNumBars) // <-- ADDED THIS
+                sendNumBarsCommand(currentNumBars)
             }, 100)
-            // --- END MODIFIED ---
         }
         btnToggleService.postDelayed({ updateUI() }, 100)
     }
