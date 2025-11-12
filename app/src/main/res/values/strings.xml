@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">Audio Visualizer</string>
     <string name="label_color">Color</string>
-    <string name="label_colour">Colour</string>
-    <string name="dialog_color_title">Select a %1$s</string>
+    <string name="choose_color_title">Choose a Color</string>
 </resources>

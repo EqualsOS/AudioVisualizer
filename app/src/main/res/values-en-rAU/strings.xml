@@ -1,3 +1,5 @@
 <resources>
+    <string name="app_name">Audio Visualiser</string>
     <string name="label_color">Colour</string>
+    <string name="choose_color_title">Choose a Colour</string>
 </resources>
