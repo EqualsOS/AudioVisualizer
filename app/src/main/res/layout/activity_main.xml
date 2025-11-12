@@ -4,17 +4,18 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:fillViewport="true"
-    android:background="?android:attr/colorBackground">
+    android:background="?android:attr/colorBackground"
+    android:clipToPadding="true">
 
     <LinearLayout
+        android:id="@+id/main_content_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp"
         tools:context=".MainActivity">
 
-        <!-- Top Label & Arrow -->
         <TextView
             android:id="@+id/tv_camera_label"
             android:layout_width="wrap_content"
@@ -34,13 +35,11 @@
             android:layout_gravity="center_horizontal"
             app:tint="?attr/colorOnSurface" />
 
-        <!-- Spacer -->
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Service Controls (Centered) -->
         <LinearLayout
             android:id="@+id/service_controls"
             android:layout_width="match_parent"
@@ -48,14 +47,12 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <!-- Split Orientation Text -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:layout_marginBottom="8dp">
 
-                <!-- REMOVED the "Orientation: " text from here since MainActivity adds it -->
                 <TextView
                     android:id="@+id/tvOrientationValue"
                     android:layout_width="wrap_content"
@@ -94,7 +91,6 @@
 
         </LinearLayout>
 
-        <!-- Diagnostic Labels -->
         <LinearLayout
             android:id="@+id/diagnostic_labels"
             android:layout_width="match_parent"
@@ -127,7 +123,6 @@
         </LinearLayout>
 
 
-        <!-- Position Controls -->
         <GridLayout
             android:id="@+id/position_controls"
             android:layout_width="match_parent"
@@ -136,7 +131,6 @@
             android:rowCount="3"
             android:layout_marginBottom="16dp">
 
-            <!-- (Position buttons unchanged) -->
             <Button
                 android:id="@+id/btn_pos_auto"
                 style="?attr/materialButtonOutlinedStyle"
@@ -186,7 +180,6 @@
 
         </GridLayout>
 
-        <!-- Color Picker Row -->
         <LinearLayout
             android:id="@+id/color_picker_row"
             android:layout_width="match_parent"
@@ -227,7 +220,6 @@
 
         </LinearLayout>
 
-        <!-- Mirror Vertical Switch -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -253,7 +245,6 @@
 
         </LinearLayout>
 
-        <!-- Mirror Horizontal Switch -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -279,13 +270,11 @@
 
         </LinearLayout>
 
-        <!-- Spacer -->
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Bottom Arrow & Label -->
         <ImageView
             android:id="@+id/iv_navbar_arrow"
             android:layout_width="48dp"

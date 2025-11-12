@@ -35,6 +35,11 @@ class VisualizerService : Service() {
     private var visualizerView: VisualizerView? = null
     private var currentParams: WindowManager.LayoutParams? = null
 
+    // --- Retry and Status Logic ---
+    private var retryCount = 0
+    private val maxRetries = 5
+    private var visualizerStatus: String = ""
+
     // --- Broadcast Receivers ---
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -85,6 +90,11 @@ class VisualizerService : Service() {
         const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR"
         const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
         const val ACTION_STATUS_UPDATED = "com.equalsos.audiovisualizer.ACTION_STATUS_UPDATED"
+
+        // Status Constants
+        const val STATUS_ACTIVE = "ACTIVE"
+        const val STATUS_RETRYING = "RETRYING..."
+        const val STATUS_ERROR_PREFIX = "ERROR: "
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -108,6 +118,7 @@ class VisualizerService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
+            retryCount = 0 // Reset retry count on new start
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
             showOverlay(initialPosition)
             startVisualizer()
@@ -195,6 +206,10 @@ class VisualizerService : Service() {
     }
 
     private fun broadcastStatus(status: String) {
+        // Only broadcast if the status has actually changed
+        if (status == visualizerStatus) return
+        visualizerStatus = status
+
         val intent = Intent(ACTION_STATUS_UPDATED)
         intent.putExtra("STATUS", status)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
@@ -292,11 +307,13 @@ class VisualizerService : Service() {
                 android.Manifest.permission.RECORD_AUDIO
             ) != PackageManager.PERMISSION_GRANTED
         ) {
+            broadcastStatus(STATUS_ERROR_PREFIX + "Record Audio permission lost")
             stopSelf()
             return
         }
 
         try {
+            broadcastStatus(STATUS_RETRYING)
             visualizer?.release()
 
             visualizer = Visualizer(0).apply {
@@ -314,7 +331,8 @@ class VisualizerService : Service() {
                                 visualizerView?.updateVisualizer(fft)
                                 lastFftTime = System.currentTimeMillis()
                                 handler.postDelayed(clearBarsRunnable, fftTimeout + 10)
-                                broadcastStatus("ACTIVE")
+                                broadcastStatus(STATUS_ACTIVE)
+                                retryCount = 0 // Success! Reset retry count.
                             }
                         }
                     },
@@ -325,9 +343,22 @@ class VisualizerService : Service() {
                 enabled = true
             }
         } catch (e: Exception) {
-            e.printStackTrace()
-            broadcastStatus("RETRYING...")
-            handler.postDelayed({ startVisualizer() }, 1000)
+            Log.e(TAG, "Error initializing Visualizer: ${e.javaClass.simpleName}", e)
+            retryCount++
+
+            // Get the specific error message from the system
+            val errorMessage = e.localizedMessage ?: e.javaClass.simpleName
+
+            if (retryCount > maxRetries) {
+                Log.e(TAG, "Max retries reached. Stopping service.")
+                broadcastStatus(STATUS_ERROR_PREFIX + "Max retries reached")
+                stopSelf()
+                return
+            }
+
+            // Broadcast the REAL error
+            broadcastStatus(STATUS_ERROR_PREFIX + errorMessage)
+            handler.postDelayed({ startVisualizer() }, 1000) // Retry after 1 second
         }
     }
 

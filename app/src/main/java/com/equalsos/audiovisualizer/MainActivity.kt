@@ -39,9 +39,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.material.button.MaterialButton
@@ -65,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etHexCode: EditText
     private lateinit var tvColorLabel: TextView
     private var currentSelectedColor: Int = Color.parseColor("#26a269")
+    private var translatedColorWord: String = "Color"
 
     // Mirrored Switches
     private lateinit var switchMirrorVert: SwitchMaterial
@@ -121,7 +126,31 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 1. Tell the system we are handling edge-to-edge drawing
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         setContentView(R.layout.activity_main)
+
+        // 2. Find the layout and apply safe area insets as padding
+        val mainContentLayout: LinearLayout = findViewById(R.id.main_content_layout)
+        val paddingDp = 16
+        val density = resources.displayMetrics.density
+        val paddingPx = (paddingDp * density).toInt()
+
+        ViewCompat.setOnApplyWindowInsetsListener(mainContentLayout) { view, insets ->
+            val systemBarInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            // Apply the insets as padding, plus our original 16dp padding
+            view.setPadding(
+                systemBarInsets.left + paddingPx,
+                systemBarInsets.top + paddingPx,
+                systemBarInsets.right + paddingPx,
+                systemBarInsets.bottom + paddingPx
+            )
+
+            WindowInsetsCompat.CONSUMED
+        }
 
         btnToggleService = findViewById(R.id.btnToggleService)
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
@@ -137,8 +166,9 @@ class MainActivity : AppCompatActivity() {
         etHexCode = findViewById(R.id.et_hex_code)
         tvColorLabel = findViewById(R.id.tv_color_label)
 
-        // Set localized label for "Color"
-        tvColorLabel.text = getString(R.string.label_color)
+        // Set localized label for "Color" and store it
+        translatedColorWord = getString(R.string.label_color)
+        tvColorLabel.text = translatedColorWord
 
         switchMirrorVert = findViewById(R.id.switch_mirror_vert)
         switchMirrorHoriz = findViewById(R.id.switch_mirror_horiz)
@@ -527,6 +557,11 @@ class MainActivity : AppCompatActivity() {
     private fun showColorPickerDialog() {
         val dialog = Dialog(this, R.style.ColorPickerDialogTheme)
         dialog.setContentView(R.layout.dialog_color_picker)
+
+        val dialogTitle = dialog.findViewById<TextView>(R.id.dialog_title)
+        // Use the new string resource and pass in the translated word
+        val titleText = getString(R.string.dialog_color_title, translatedColorWord)
+        dialogTitle.text = titleText
 
         val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container)
         val dialogPreviewBox = dialog.findViewById<View>(R.id.dialog_preview_box)
