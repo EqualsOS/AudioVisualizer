@@ -46,6 +46,7 @@ import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.children
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity() {
@@ -72,6 +73,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchMirrorHoriz: SwitchMaterial
     private var isMirrorVert = false
     private var isMirrorHoriz = false
+
+    // --- SLIDER VIEWS ---
+    private lateinit var sliderNumBars: Slider
+    private lateinit var tvNumBarsLabel: TextView
+    private var currentNumBars: Int = 32
 
     // --- Diagnostic Views ---
     private lateinit var tvCurrentMode: TextView
@@ -128,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // --- Standard View Binding ---
         btnToggleService = findViewById(R.id.btnToggleService)
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
         tvOrientationValue = findViewById(R.id.tvOrientationValue)
@@ -138,6 +145,7 @@ class MainActivity : AppCompatActivity() {
         btnAuto = findViewById(R.id.btn_pos_auto)
         tvVisualizerStatus = findViewById(R.id.tvVisualizerStatus)
 
+        // --- Color Picker View Binding ---
         colorPreviewBox = findViewById(R.id.color_preview_box)
         etHexCode = findViewById(R.id.et_hex_code)
         tvColorLabel = findViewById(R.id.tv_color_label)
@@ -147,30 +155,36 @@ class MainActivity : AppCompatActivity() {
             tvColorLabel.text = getString(labelResId)
         }
 
+        // --- Mirror Switch View Binding ---
         switchMirrorVert = findViewById(R.id.switch_mirror_vert)
         switchMirrorHoriz = findViewById(R.id.switch_mirror_horiz)
 
+        // --- Diagnostic View Binding ---
         tvCurrentMode = findViewById(R.id.tvCurrentMode)
         tvExpectedPosition = findViewById(R.id.tvExpectedPosition)
         tvActualPosition = findViewById(R.id.tvActualPosition)
 
+        // --- SLIDER VIEW BINDING ---
+        sliderNumBars = findViewById(R.id.slider_num_bars)
+        tvNumBarsLabel = findViewById(R.id.tv_num_bars_label)
+
+        // --- Button Listeners ---
         btnToggleService.setOnClickListener {
             toggleService()
         }
-
         findViewById<Button>(R.id.btn_pos_top).setOnClickListener { setManualPosition("TOP") }
         findViewById<Button>(R.id.btn_pos_bottom).setOnClickListener { setManualPosition("BOTTOM") }
         findViewById<Button>(R.id.btn_pos_left).setOnClickListener { setManualPosition("LEFT") }
         findViewById<Button>(R.id.btn_pos_right).setOnClickListener { setManualPosition("RIGHT") }
         btnAuto.setOnClickListener { setAutoMode() }
 
+        // --- Color Picker Listeners ---
         val colorClickListener = View.OnClickListener { showColorPickerDialog() }
         colorPreviewBox.setOnClickListener(colorClickListener)
         tvColorLabel.setOnClickListener(colorClickListener)
         setupHexCodeListener()
 
-        // --- MODIFIED SWITCH LISTENERS ---
-        // Send raw switch state to service. Service will do the logic.
+        // --- Switch Listeners ---
         switchMirrorVert.setOnCheckedChangeListener { _, isChecked ->
             isMirrorVert = isChecked
             sendMirroredCommand()
@@ -179,8 +193,22 @@ class MainActivity : AppCompatActivity() {
             isMirrorHoriz = isChecked
             sendMirroredCommand()
         }
-        // --- END MODIFIED SWITCH LISTENERS ---
 
+        // --- MODIFIED SLIDER LISTENER ---
+        tvNumBarsLabel.text = "Bars: $currentNumBars"
+        sliderNumBars.value = currentNumBars.toFloat()
+
+        sliderNumBars.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) {
+                currentNumBars = value.toInt()
+                tvNumBarsLabel.text = "Bars: $currentNumBars"
+                // Send command on every value change
+                sendNumBarsCommand(currentNumBars)
+            }
+        }
+        // --- END MODIFIED SLIDER LISTENER ---
+
+        // --- Broadcast Receiver Registration ---
         val serviceIntentFilter = IntentFilter(VisualizerService.ACTION_SERVICE_STOPPED)
         LocalBroadcastManager.getInstance(this).registerReceiver(serviceStateReceiver, serviceIntentFilter)
 
@@ -190,6 +218,7 @@ class MainActivity : AppCompatActivity() {
         val statusIntentFilter = IntentFilter(VisualizerService.ACTION_STATUS_UPDATED)
         LocalBroadcastManager.getInstance(this).registerReceiver(statusUpdateReceiver, statusIntentFilter)
 
+        // --- Orientation Listener Setup ---
         orientationEventListener = object : OrientationEventListener(this) {
             override fun onOrientationChanged(orientation: Int) {
                 val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
@@ -235,12 +264,9 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(statusUpdateReceiver)
     }
 
-    // --- MODIFIED FUNCTION ---
     private fun onRotationChanged(rotation: Int) {
-        // This function's ONLY job is to update the MainActivity UI
         updateOrientationUI(rotation)
         updateDiagnosticLabels()
-        // The service handles ALL position and mirror logic on rotation
     }
 
     private fun updateOrientationUI(rotation: Int) {
@@ -398,7 +424,6 @@ class MainActivity : AppCompatActivity() {
         tvActualPosition.text = "Actual Position: $actualPosition"
     }
 
-    // --- MODIFIED FUNCTION ---
     private fun toggleService() {
         val intent = Intent(this, VisualizerService::class.java)
         if (VisualizerService.isRunning) {
@@ -420,9 +445,10 @@ class MainActivity : AppCompatActivity() {
             intent.putExtra("POSITION", startPos)
             intent.putExtra("MODE", currentMode)
 
-            // Pass the initial switch states to the service
             intent.putExtra("IS_MIRROR_VERT", isMirrorVert)
             intent.putExtra("IS_MIRROR_HORIZ", isMirrorHoriz)
+
+            intent.putExtra("NUM_BARS", currentNumBars)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
@@ -456,27 +482,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- MODIFIED FUNCTION ---
     private fun setManualPosition(position: String) {
         isAutoMode = false
         currentMode = position
         updateAutoButtonUI()
         updateDiagnosticLabels()
 
-        sendModeCommand(position) // Tell service the new mode is "TOP", "LEFT", etc.
-        sendPositionCommand(position) // Tell service to move
-        // No need to send mirror, service will re-calc on position update
+        sendModeCommand(position)
+        sendPositionCommand(position)
     }
 
-    // --- MODIFIED FUNCTION ---
     private fun setAutoMode() {
         isAutoMode = true
         currentMode = "AUTO"
         updateAutoButtonUI()
         updateDiagnosticLabels()
 
-        sendModeCommand("AUTO") // Tell service new mode is "AUTO"
-        // Service will automatically update its own position and mirror
+        sendModeCommand("AUTO")
     }
 
     private fun updateAutoButtonUI() {
@@ -506,8 +528,6 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
-    // --- MODIFIED FUNCTION ---
-    // This now ONLY sends the raw switch state.
     private fun sendMirroredCommand() {
         if (!VisualizerService.isRunning) return
 
@@ -516,7 +536,14 @@ class MainActivity : AppCompatActivity() {
         intent.putExtra("IS_MIRROR_HORIZ", isMirrorHoriz)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
-    // --- END MODIFIED FUNCTION ---
+
+    private fun sendNumBarsCommand(numBars: Int) {
+        if (!VisualizerService.isRunning) return
+
+        val intent = Intent(VisualizerService.ACTION_UPDATE_NUM_BARS)
+        intent.putExtra("NUM_BARS", numBars)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
 
     private fun updateColorUI() {
         val hexColor = String.format("#%06X", (0xFFFFFF and currentSelectedColor))
@@ -579,6 +606,11 @@ class MainActivity : AppCompatActivity() {
     private fun showColorPickerDialog() {
         val dialog = Dialog(this, R.style.ColorPickerDialogTheme)
         dialog.setContentView(R.layout.dialog_color_picker)
+
+        val titleView = dialog.findViewById<TextView>(R.id.dialog_title)
+        if (titleView != null) {
+            titleView.text = getString(R.string.choose_color_title)
+        }
 
         val container = dialog.findViewById<LinearLayout>(R.id.color_grid_container)
         val dialogPreviewBox = dialog.findViewById<View>(R.id.dialog_preview_box)

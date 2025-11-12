@@ -16,7 +16,11 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
     private var currentBarHeights: FloatArray? = null
     private var orientation: Orientation = Orientation.VERTICAL
     private var drawDirection: DrawDirection = DrawDirection.LEFT_TO_RIGHT
-    private var numBars = 32
+
+    // --- MODIFIED ---
+    private var numBars = 32 // Default value
+    // --- END MODIFIED ---
+
     private var isMirrorVert = false
     private var isMirrorHoriz = false
 
@@ -43,6 +47,22 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         isMirrorHoriz = horiz
     }
 
+    // --- NEW FUNCTION ---
+    fun setNumBars(newNumBars: Int) {
+        // Clamp values to the supported range
+        val clampedNumBars = newNumBars.coerceIn(6, 100)
+
+        if (clampedNumBars == numBars) return
+
+        numBars = clampedNumBars
+        // CRITICAL: Reset the arrays. This forces them to be
+        // re-initialized with the new size on the next data update.
+        targetBarHeights = null
+        currentBarHeights = null
+        invalidate() // Force a redraw
+    }
+    // --- END NEW FUNCTION ---
+
     override fun doFrame(frameTimeNanos: Long) {
         if (lastFrameTime == 0L) {
             lastFrameTime = frameTimeNanos
@@ -55,12 +75,30 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         val targets = targetBarHeights
         var current = currentBarHeights
 
+        // --- MODIFIED: Check array size ---
+        // If the number of bars changed, the arrays might be the wrong size.
+        // Re-initialize them.
+        if (targets != null && targets.size != numBars) {
+            targetBarHeights = null
+            currentBarHeights = null
+            current = null
+        }
+        // --- END MODIFIED ---
+
         if (targets != null && current == null) {
             current = FloatArray(numBars) { 0f }
             currentBarHeights = current
         }
 
         if (current != null && targets != null) {
+            // Safety check for size mismatch
+            if (current.size != numBars || targets.size != numBars) {
+                targetBarHeights = null
+                currentBarHeights = null
+                Choreographer.getInstance().postFrameCallback(this)
+                return
+            }
+
             for (i in 0 until numBars) {
                 val currentHeight = current[i]
                 val targetHeight = targets[i]
@@ -91,9 +129,11 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
     fun updateVisualizer(bytes: ByteArray) {
         val data = bytes
 
-        if (targetBarHeights == null) {
+        // --- MODIFIED: Check array size ---
+        if (targetBarHeights == null || targetBarHeights?.size != numBars) {
             targetBarHeights = FloatArray(numBars) { 0f }
         }
+        // --- END MODIFIED ---
 
         if (data.isEmpty()) {
             for (i in 0 until numBars) {
@@ -152,7 +192,8 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         super.onDraw(canvas)
 
         val heights = currentBarHeights ?: return
-        if (width == 0 || height == 0) return
+        if (width == 0 || height == 0 || numBars == 0) return // <-- Added numBars check
+        if (heights.size != numBars) return // <-- Added safety check
 
         if (orientation == Orientation.VERTICAL) {
             drawVertical(canvas, heights)
