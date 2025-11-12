@@ -5,7 +5,7 @@ Each View is a color swatch, using the color_swatch.xml drawable.
 The backgroundTint sets the color.
 -->
 <GridLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res/auto"
     android:id="@+id/color_grid"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -15,53 +15,53 @@ The backgroundTint sets the color.
     android:layout_marginBottom="16dp">
 
     <!-- Row 1 -->
-    <View android:backgroundTint="#b3d9ff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#b3e6b3" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffffb3" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffe0b3" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffb3b3" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#e0b3ff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#d9c2a3" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffffff" style="@style/ColorSwatch" />
+    <View android:backgroundTint="#b3d9ff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#b3e6b3" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffffb3" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffe0b3" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffb3b3" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#e0b3ff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#d9c2a3" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffffff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
 
     <!-- Row 2 -->
-    <View android:backgroundTint="#80bfff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#80d980" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffff80" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffd280" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ff8080" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#d280ff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#c6a980" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#cccccc" style="@style/ColorSwatch" />
+    <View android:backgroundTint="#80bfff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#80d980" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffff80" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffd280" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ff8080" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#d280ff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#c6a980" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#cccccc" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
 
     <!-- Row 3 -->
-    <View android:backgroundTint="#4da6ff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#4dcb4d" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffff4d" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffc04d" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ff4d4d" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#c04dff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#b38f5a" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#999999" style="@style/ColorSwatch" />
+    <View android:backgroundTint="#4da6ff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#4dcb4d" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffff4d" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffc04d" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ff4d4d" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#c04dff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#b38f5a" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#999999" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
 
     <!-- Row 4 -->
-    <View android:backgroundTint="#1a8cff" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#1aad1a" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#e6e600" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ffac1a" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#e60000" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#ae00e6" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#9f773a" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#666666" style="@style/ColorSwatch" />
+    <View android:backgroundTint="#1a8cff" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#1aad1a" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#e6e600" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ffac1a" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#e60000" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#ae00e6" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#9f773a" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#666666" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
 
     <!-- Row 5 -->
-    <View android:backgroundTint="#0066cc" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#008000" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#b3b300" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#e68a00" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#b30000" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#8d00b3" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#805c2a" style="@style/ColorSwatch" />
-    <View android:backgroundTint="#000000" style="@style/ColorSwatch" />
+    <View android:backgroundTint="#0066cc" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#008000" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#b3b300" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#e68a00" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#b30000" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#8d00b3" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#805c2a" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
+    <View android:backgroundTint="#000000" style="@style/ColorSwatch" android:onClick="onDialogColorSwatchClicked" />
 
 </GridLayout>

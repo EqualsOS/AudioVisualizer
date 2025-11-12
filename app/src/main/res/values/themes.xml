@@ -7,7 +7,7 @@
 
     <style name="Theme.AudioVisualizer" parent="Base.Theme.AudioVisualizer" />
 
-    <!-- NEW: Color Swatch Style -->
+    <!-- Style for the color swatches in the grid -->
     <style name="ColorSwatch">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">40dp</item>
@@ -16,6 +16,13 @@
         <item name="android:background">@drawable/color_swatch</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
-        <item name="android:onClick">onColorSwatchClicked</item>
     </style>
+
+    <!-- NEW: Style for the custom dialog -->
+    <style name="ColorPickerDialogTheme" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+    </style>
+
 </resources>
