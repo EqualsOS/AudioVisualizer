@@ -77,17 +77,15 @@ class VisualizerService : Service() {
         }
     }
 
-    // --- NEW RECEIVER for Num Bars (TYPO FIXED) ---
     private val numBarsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_UPDATE_NUM_BARS) {
                 val numBars = intent.getIntExtra("NUM_BARS", 32)
                 Log.d(TAG, "Received numBars command: $numBars")
-                visualizerView?.setNumBars(numBars) // <-- TYPO FIXED
+                visualizerView?.setNumBars(numBars)
             }
         }
     }
-    // --- END NEW RECEIVER ---
 
     private val forceInitReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -148,11 +146,20 @@ class VisualizerService : Service() {
         const val ACTION_POSITION_UPDATED = "com.equalsos.audiovisualizer.ACTION_POSITION_UPDATED"
         const val ACTION_UPDATE_COLOR = "com.equalsos.audiovisualizer.ACTION_UPDATE_COLOR"
         const val ACTION_UPDATE_MIRRORED = "com.equalsos.audiovisualizer.ACTION_UPDATE_MIRRORED"
-        const val ACTION_UPDATE_NUM_BARS = "com.equalsos.audiovisualizer.ACTION_UPDATE_NUM_BARS" // <-- NEW ACTION
+        const val ACTION_UPDATE_NUM_BARS = "com.equalsos.audiovisualizer.ACTION_UPDATE_NUM_BARS"
         const val ACTION_FORCE_INIT = "com.equalsos.audiovisualizer.ACTION_FORCE_INIT"
         const val ACTION_STATUS_UPDATED = "com.equalsos.audiovisualizer.ACTION_STATUS_UPDATED"
         const val ACTION_PING = "com.equalsos.audiovisualizer.ACTION_PING"
         const val ACTION_SET_MODE = "com.equalsos.audiovisualizer.ACTION_SET_MODE"
+
+        // --- ADDED KEYS ---
+        const val PREFS_NAME = "AudioVisualizerPrefs"
+        const val KEY_NUM_BARS = "numBars"
+        const val KEY_COLOR = "color"
+        const val KEY_MIRROR_VERT = "mirrorVert"
+        const val KEY_MIRROR_HORIZ = "mirrorHoriz"
+        const val KEY_MODE = "mode"
+        // --- END ADDED ---
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -167,7 +174,7 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).registerReceiver(positionReceiver, IntentFilter(ACTION_UPDATE_POSITION))
         LocalBroadcastManager.getInstance(this).registerReceiver(colorReceiver, IntentFilter(ACTION_UPDATE_COLOR))
         LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
-        LocalBroadcastManager.getInstance(this).registerReceiver(numBarsReceiver, IntentFilter(ACTION_UPDATE_NUM_BARS)) // <-- REGISTER NEW RECEIVER
+        LocalBroadcastManager.getInstance(this).registerReceiver(numBarsReceiver, IntentFilter(ACTION_UPDATE_NUM_BARS))
         LocalBroadcastManager.getInstance(this).registerReceiver(forceInitReceiver, IntentFilter(ACTION_FORCE_INIT))
         LocalBroadcastManager.getInstance(this).registerReceiver(pingReceiver, IntentFilter(ACTION_PING))
         LocalBroadcastManager.getInstance(this).registerReceiver(modeReceiver, IntentFilter(ACTION_SET_MODE))
@@ -184,6 +191,28 @@ class VisualizerService : Service() {
             handler.postDelayed(updatePositionRunnable, 200) // 200ms delay
         }
     }
+
+    // --- NEW HELPER FUNCTION ---
+    private fun loadAllPreferences() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        currentMode = prefs.getString(KEY_MODE, "AUTO") ?: "AUTO"
+        userMirrorVert = prefs.getBoolean(KEY_MIRROR_VERT, false)
+        userMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
+
+        // Other settings are loaded and applied in onStartCommand
+    }
+
+    private fun loadNumBarsFromPrefs(): Int {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_NUM_BARS, 32)
+    }
+
+    private fun loadColorFromPrefs(): Int {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_COLOR, Color.parseColor("#26a269"))
+    }
+    // --- END NEW HELPER FUNCTIONS ---
 
     private fun updatePositionForCurrentOrientation() {
         val display = windowManager.defaultDisplay
@@ -214,22 +243,26 @@ class VisualizerService : Service() {
     }
 
 
+    // --- MODIFIED FUNCTION ---
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
+            // Load all settings from SharedPreferences
+            loadAllPreferences()
+            val initialNumBars = loadNumBarsFromPrefs()
+            val initialColor = loadColorFromPrefs()
+
+            // Get initial position from intent (this is the only thing we need)
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
-            currentMode = intent?.getStringExtra("MODE") ?: "AUTO"
 
-            userMirrorVert = intent?.getBooleanExtra("IS_MIRROR_VERT", false) ?: false
-            userMirrorHoriz = intent?.getBooleanExtra("IS_MIRROR_HORIZ", false) ?: false
-
-            val initialNumBars = intent?.getIntExtra("NUM_BARS", 32) ?: 32
-
-            Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition")
+            Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition, Bars: $initialNumBars")
 
             showOverlay(initialPosition)
-            visualizerView?.setNumBars(initialNumBars) // <-- SET INITIAL BARS
+
+            // Apply loaded settings
+            visualizerView?.setNumBars(initialNumBars)
+            visualizerView?.setColor(initialColor)
 
             if (currentMode == "AUTO") {
                 updatePositionForCurrentOrientation()
@@ -243,6 +276,7 @@ class VisualizerService : Service() {
 
         return START_STICKY
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun createNotification(): Notification {
         val notificationBuilder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
@@ -529,7 +563,7 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(positionReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(colorReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(numBarsReceiver) // <-- UNREGISTER NEW RECEIVER
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(numBarsReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(forceInitReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(pingReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(modeReceiver)
