@@ -10,7 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.Configuration // <-- IMPORT
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Point
@@ -24,7 +24,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.view.Surface // <-- IMPORT
+import android.view.Surface
 import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -38,17 +38,20 @@ class VisualizerService : Service() {
     private var visualizer: Visualizer? = null
     private var visualizerView: VisualizerView? = null
     private var currentParams: WindowManager.LayoutParams? = null
-    private var currentPosition: String = "BOTTOM" // Track position internally
-    private var currentStatus: String = "STARTING..." // Track status internally
-    private var currentMode: String = "AUTO" // Track mode internally
+    private var currentPosition: String = "BOTTOM"
+    private var currentStatus: String = "STARTING..."
+    private var currentMode: String = "AUTO"
+
+    // --- NEW: Store user's raw switch preferences ---
+    private var userMirrorVert = false
+    private var userMirrorHoriz = false
+    // --- END NEW ---
 
     // --- Broadcast Receivers ---
     private val positionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent?.getStringExtra("POSITION")?.let { position ->
                 Log.d(TAG, "Received position command: $position")
-                // Only update position if we are in manual mode
-                // (or service will fight with config changes)
                 if (currentMode != "AUTO") {
                     updateOverlayPosition(position)
                 }
@@ -65,15 +68,20 @@ class VisualizerService : Service() {
         }
     }
 
+    // --- MODIFIED RECEIVER ---
     private val mirroredReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_UPDATE_MIRRORED) {
-                val isMirrorVert = intent.getBooleanExtra("IS_MIRROR_VERT", false)
-                val isMirrorHoriz = intent.getBooleanExtra("IS_MIRROR_HORIZ", false)
-                visualizerView?.setMirrored(isMirrorVert, isMirrorHoriz)
+                // Store the raw user preference from the switch
+                userMirrorVert = intent.getBooleanExtra("IS_MIRROR_VERT", false)
+                userMirrorHoriz = intent.getBooleanExtra("IS_MIRROR_HORIZ", false)
+                Log.d(TAG, "Received mirror prefs: V=$userMirrorVert, H=$userMirrorHoriz")
+                // Apply the logic
+                applyMirrorLogic()
             }
         }
     }
+    // --- END MODIFIED RECEIVER ---
 
     private val forceInitReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -94,15 +102,13 @@ class VisualizerService : Service() {
         }
     }
 
-    // --- NEW RECEIVER ---
     private val modeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_SET_MODE) {
                 val newMode = intent.getStringExtra("MODE") ?: "AUTO"
                 Log.d(TAG, "Mode set to: $newMode")
-                currentMode = newMode // Store the new mode
+                currentMode = newMode
 
-                // If mode is set back to AUTO, trigger an immediate update
                 if (currentMode == "AUTO") {
                     updatePositionForCurrentOrientation()
                 }
@@ -134,7 +140,7 @@ class VisualizerService : Service() {
         const val ACTION_FORCE_INIT = "com.equalsos.audiovisualizer.ACTION_FORCE_INIT"
         const val ACTION_STATUS_UPDATED = "com.equalsos.audiovisualizer.ACTION_STATUS_UPDATED"
         const val ACTION_PING = "com.equalsos.audiovisualizer.ACTION_PING"
-        const val ACTION_SET_MODE = "com.equalsos.audiovisualizer.ACTION_SET_MODE" // <-- NEW
+        const val ACTION_SET_MODE = "com.equalsos.audiovisualizer.ACTION_SET_MODE"
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -151,35 +157,35 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).registerReceiver(mirroredReceiver, IntentFilter(ACTION_UPDATE_MIRRORED))
         LocalBroadcastManager.getInstance(this).registerReceiver(forceInitReceiver, IntentFilter(ACTION_FORCE_INIT))
         LocalBroadcastManager.getInstance(this).registerReceiver(pingReceiver, IntentFilter(ACTION_PING))
-        LocalBroadcastManager.getInstance(this).registerReceiver(modeReceiver, IntentFilter(ACTION_SET_MODE)) // <-- NEW
+        LocalBroadcastManager.getInstance(this).registerReceiver(modeReceiver, IntentFilter(ACTION_SET_MODE))
 
         isRunning = true
         Log.d(TAG, "onCreate: Service starting...")
     }
 
-    // --- NEW OVERRIDE FUNCTION ---
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d(TAG, "onConfigurationChanged detected.")
         if (currentMode == "AUTO") {
-            // A short delay helps ensure the display rotation properties are fully updated
             handler.postDelayed({
                 updatePositionForCurrentOrientation()
             }, 50)
         }
     }
 
-    // --- NEW HELPER FUNCTION ---
+    // --- MODIFIED FUNCTION ---
     private fun updatePositionForCurrentOrientation() {
         val display = windowManager.defaultDisplay
         val rotation = display.rotation
 
         val autoPosition = getAutoPosition(rotation)
         Log.d(TAG, "Auto-updating position for rotation $rotation: $autoPosition")
+
+        // This will call updateOverlayPosition, which now triggers applyMirrorLogic
         updateOverlayPosition(autoPosition)
     }
+    // --- END MODIFIED FUNCTION ---
 
-    // --- NEW HELPER FUNCTION ---
     private fun getAutoPosition(rotation: Int): String {
         return when (rotation) {
             Surface.ROTATION_0 -> "BOTTOM"
@@ -190,24 +196,45 @@ class VisualizerService : Service() {
         }
     }
 
+    // --- NEW HELPER FUNCTION ---
+    // This function contains the XOR logic and applies it to the view
+    private fun applyMirrorLogic() {
+        // 1. Determine base mirror state (only "RIGHT" is mirrored by default)
+        val baseMirror = (currentPosition == "RIGHT")
+
+        // 2. XOR the base state with the user's switch preference
+        val finalIsMirrorHoriz = baseMirror xor userMirrorHoriz
+
+        Log.d(TAG, "Applying mirror logic: Pos=$currentPosition, Base=$baseMirror, UserH=$userMirrorHoriz, FinalH=$finalIsMirrorHoriz")
+
+        // 3. Apply to the view
+        visualizerView?.setMirrored(userMirrorVert, finalIsMirrorHoriz)
+    }
+    // --- END NEW HELPER FUNCTION ---
+
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
-            currentMode = intent?.getStringExtra("MODE") ?: "AUTO" // <-- MODIFIED
+            currentMode = intent?.getStringExtra("MODE") ?: "AUTO"
+
+            // --- ADDED: Get initial mirror switch state ---
+            userMirrorVert = intent?.getBooleanExtra("IS_MIRROR_VERT", false) ?: false
+            userMirrorHoriz = intent?.getBooleanExtra("IS_MIRROR_HORIZ", false) ?: false
+            // --- END ADDED ---
 
             Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition")
 
             showOverlay(initialPosition)
 
-            // --- ADDED BLOCK ---
-            // If starting in AUTO mode, ensure position is correct for current rotation
             if (currentMode == "AUTO") {
                 updatePositionForCurrentOrientation()
+            } else {
+                // For manual mode, we need to apply the initial mirror logic
+                applyMirrorLogic()
             }
-            // --- END ADDED BLOCK ---
 
             broadcastStatus("STARTING...")
             startVisualizer()
@@ -278,33 +305,40 @@ class VisualizerService : Service() {
         currentParams = null
     }
 
+    // --- MODIFIED FUNCTION ---
     private fun updateOverlayPosition(position: String) {
         if (floatingView == null || currentParams == null || !floatingView!!.isAttachedToWindow) {
             Log.w(TAG, "updateOverlayPosition called but view is not ready. Re-creating.")
             removeOverlay()
             showOverlay(position)
+            applyMirrorLogic() // Apply mirror after view is re-created
             return
         }
 
-        // Only update if the position is actually different
-        if (position == currentPosition && currentParams?.width != 0) {
-            // We check width != 0 to ensure params are initialized
-            // This prevents redundant updates
-            return
-        }
+        val positionChanged = (position != currentPosition)
 
+        // Re-create params even if position is same, in case screen size changed
         currentParams = createLayoutParams(position)
 
         try {
             windowManager.updateViewLayout(floatingView, currentParams)
             currentPosition = position
-            broadcastActualPosition(position)
+
+            if(positionChanged) {
+                broadcastActualPosition(position)
+            }
+
+            // Always re-apply mirror logic after a position update
+            applyMirrorLogic()
+
         } catch (e: Exception) {
             Log.e(TAG, "Error updating view layout", e)
             removeOverlay()
             showOverlay(position)
+            applyMirrorLogic() // Apply mirror after view is re-created
         }
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun broadcastActualPosition(position: String) {
         val intent = Intent(ACTION_POSITION_UPDATED)
@@ -499,6 +533,6 @@ class VisualizerService : Service() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mirroredReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(forceInitReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(pingReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(modeReceiver) // <-- NEW
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(modeReceiver)
     }
 }
