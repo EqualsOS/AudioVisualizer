@@ -152,14 +152,12 @@ class VisualizerService : Service() {
         const val ACTION_PING = "com.equalsos.audiovisualizer.ACTION_PING"
         const val ACTION_SET_MODE = "com.equalsos.audiovisualizer.ACTION_SET_MODE"
 
-        // --- ADDED KEYS ---
         const val PREFS_NAME = "AudioVisualizerPrefs"
         const val KEY_NUM_BARS = "numBars"
         const val KEY_COLOR = "color"
         const val KEY_MIRROR_VERT = "mirrorVert"
         const val KEY_MIRROR_HORIZ = "mirrorHoriz"
         const val KEY_MODE = "mode"
-        // --- END ADDED ---
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -192,7 +190,6 @@ class VisualizerService : Service() {
         }
     }
 
-    // --- MODIFIED HELPER FUNCTION ---
     private fun loadAllPreferences() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -200,7 +197,6 @@ class VisualizerService : Service() {
         userMirrorVert = prefs.getBoolean(KEY_MIRROR_VERT, false)
         userMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
     }
-    // --- END MODIFIED HELPER FUNCTION ---
 
     private fun updatePositionForCurrentOrientation() {
         val display = windowManager.defaultDisplay
@@ -222,16 +218,27 @@ class VisualizerService : Service() {
         }
     }
 
+    // --- THIS IS THE MODIFIED FUNCTION ---
     private fun applyMirrorLogic() {
-        val baseMirror = (currentPosition == "RIGHT")
-        val finalIsMirrorHoriz = baseMirror xor userMirrorHoriz
+        // 1. Determine base horizontal mirror state ("RIGHT" or "TOP" are mirrored by default)
+        val baseMirrorHoriz = (currentPosition == "RIGHT" || currentPosition == "TOP")
+        // 2. XOR the base state with the user's horizontal switch preference
+        val finalIsMirrorHoriz = baseMirrorHoriz xor userMirrorHoriz
 
-        Log.d(TAG, "Applying mirror logic: Pos=$currentPosition, Base=$baseMirror, UserH=$userMirrorHoriz, FinalH=$finalIsMirrorHoriz")
-        visualizerView?.setMirrored(userMirrorVert, finalIsMirrorHoriz)
+        // 3. Determine base vertical mirror state (only "TOP" is mirrored by default)
+        val baseMirrorVert = (currentPosition == "TOP")
+        // 4. XOR the base state with the user's vertical switch preference
+        val finalIsMirrorVert = baseMirrorVert xor userMirrorVert
+
+        Log.d(TAG, "Applying mirror logic (H): Pos=$currentPosition, BaseH=$baseMirrorHoriz, UserH=$userMirrorHoriz, FinalH=$finalIsMirrorHoriz")
+        Log.d(TAG, "Applying mirror logic (V): Pos=$currentPosition, BaseV=$baseMirrorVert, UserV=$userMirrorVert, FinalV=$finalIsMirrorVert")
+
+        // 5. Apply both final values to the view
+        visualizerView?.setMirrored(finalIsMirrorVert, finalIsMirrorHoriz)
     }
+    // --- END MODIFIED FUNCTION ---
 
 
-    // --- MODIFIED FUNCTION ---
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, createNotification())
 
@@ -252,7 +259,8 @@ class VisualizerService : Service() {
             if (currentMode == "AUTO") {
                 updatePositionForCurrentOrientation()
             } else {
-                applyMirrorLogic()
+                // Manually set position and apply mirror logic
+                updateOverlayPosition(currentPosition)
             }
 
             broadcastStatus("STARTING...")
@@ -261,7 +269,6 @@ class VisualizerService : Service() {
 
         return START_STICKY
     }
-    // --- END MODIFIED FUNCTION ---
 
     private fun createNotification(): Notification {
         val notificationBuilder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
