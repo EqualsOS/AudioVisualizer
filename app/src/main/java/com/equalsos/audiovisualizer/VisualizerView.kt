@@ -19,7 +19,7 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
     private var orientation: Orientation = Orientation.VERTICAL
     private var drawDirection: DrawDirection = DrawDirection.LEFT_TO_RIGHT
 
-    private var numBars = 32
+    private var numBars = 45 // <-- NEW DEFAULT
 
     private var isMirrorVert = false
     private var isMirrorHoriz = false
@@ -33,18 +33,13 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
     private val peakFallSpeed = 0.2f
     private val peakHeight = 4.0f
 
-    // --- NEW: Sensitivity multiplier for high-frequency bars ---
-    // We can tweak this value.
-    // 0.0 = no boost (linear)
-    // 2.0 = last bar is 3x more sensitive than first bar
     private val sensitivity = 2.0f
-    // --- END NEW ---
 
     enum class Orientation { VERTICAL, HORIZONTAL }
     enum class DrawDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT }
 
     init {
-        paint.color = Color.parseColor("#26a269")
+        paint.color = Color.parseColor("#4DCB4D") // <-- NEW DEFAULT
         paint.style = Paint.Style.FILL
 
         peakPaint.color = lighterColor(paint.color)
@@ -168,7 +163,6 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    // --- MODIFIED FUNCTION ---
     fun updateVisualizer(bytes: ByteArray) {
         val data = bytes
 
@@ -218,20 +212,14 @@ class VisualizerView(context: Context, attrs: AttributeSet?) :
 
             val avgMagnitude = if (count > 0) (magnitudeSum / count).toFloat() else 0f
 
-            // --- NEW GAIN LOGIC ---
-            // Create a gain multiplier that increases with the bar index
-            // Bar 0: gain = 1.0 (no boost)
-            // Last Bar: gain = 1.0 + sensitivity
             val gain = 1.0f + (i.toFloat() / numBars) * sensitivity
             val boostedMagnitude = avgMagnitude * gain
-            // --- END NEW GAIN LOGIC ---
 
             val targetHeight = (boostedMagnitude / maxMagnitude) * maxHeight
 
             targetBarHeights?.set(i, targetHeight.coerceAtMost(maxHeight.toFloat()))
         }
     }
-    // --- END MODIFIED FUNCTION ---
 
     fun setOrientation(orientation: Orientation, drawDirection: DrawDirection) {
         this.orientation = orientation

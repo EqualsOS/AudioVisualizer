@@ -80,7 +80,7 @@ class VisualizerService : Service() {
     private val numBarsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_UPDATE_NUM_BARS) {
-                val numBars = intent.getIntExtra("NUM_BARS", 32)
+                val numBars = intent.getIntExtra("NUM_BARS", 45) // <-- NEW DEFAULT
                 Log.d(TAG, "Received numBars command: $numBars")
                 visualizerView?.setNumBars(numBars)
             }
@@ -198,6 +198,9 @@ class VisualizerService : Service() {
         userMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
     }
 
+    // --- REMOVED loadNumBarsFromPrefs() and loadColorFromPrefs() ---
+    // They are no longer needed, Activity sends them on start.
+
     private fun updatePositionForCurrentOrientation() {
         val display = windowManager.defaultDisplay
         val rotation = display.rotation
@@ -218,25 +221,18 @@ class VisualizerService : Service() {
         }
     }
 
-    // --- THIS IS THE MODIFIED FUNCTION ---
     private fun applyMirrorLogic() {
-        // 1. Determine base horizontal mirror state ("RIGHT" or "TOP" are mirrored by default)
         val baseMirrorHoriz = (currentPosition == "RIGHT" || currentPosition == "TOP")
-        // 2. XOR the base state with the user's horizontal switch preference
         val finalIsMirrorHoriz = baseMirrorHoriz xor userMirrorHoriz
 
-        // 3. Determine base vertical mirror state (only "TOP" is mirrored by default)
         val baseMirrorVert = (currentPosition == "TOP")
-        // 4. XOR the base state with the user's vertical switch preference
         val finalIsMirrorVert = baseMirrorVert xor userMirrorVert
 
         Log.d(TAG, "Applying mirror logic (H): Pos=$currentPosition, BaseH=$baseMirrorHoriz, UserH=$userMirrorHoriz, FinalH=$finalIsMirrorHoriz")
         Log.d(TAG, "Applying mirror logic (V): Pos=$currentPosition, BaseV=$baseMirrorVert, UserV=$userMirrorVert, FinalV=$finalIsMirrorVert")
 
-        // 5. Apply both final values to the view
         visualizerView?.setMirrored(finalIsMirrorVert, finalIsMirrorHoriz)
     }
-    // --- END MODIFIED FUNCTION ---
 
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -259,7 +255,6 @@ class VisualizerService : Service() {
             if (currentMode == "AUTO") {
                 updatePositionForCurrentOrientation()
             } else {
-                // Manually set position and apply mirror logic
                 updateOverlayPosition(currentPosition)
             }
 

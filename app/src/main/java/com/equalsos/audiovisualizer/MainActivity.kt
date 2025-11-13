@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var colorPreviewBox: View
     private lateinit var etHexCode: EditText
     private lateinit var tvColorLabel: TextView
-    private var currentSelectedColor: Int = Color.parseColor("#26a269")
+    private var currentSelectedColor: Int = Color.parseColor("#4DCB4D") // <-- NEW DEFAULT
 
     // Mirrored Switches
     private lateinit var switchMirrorVert: SwitchMaterial
@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
     // --- SLIDER VIEWS ---
     private lateinit var sliderNumBars: Slider
     private lateinit var tvNumBarsLabel: TextView
-    private var currentNumBars: Int = 32
+    private var currentNumBars: Int = 45 // <-- NEW DEFAULT
 
     // --- Diagnostic Views ---
     private lateinit var tvCurrentMode: TextView
@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
     private var isAutoMode = true
     private var currentMode = "AUTO"
 
-    // --- MODIFIED COMPANION OBJECT ---
+    // --- COMPANION OBJECT ---
     companion object {
         var actualPosition = "STOPPED"
         var visualizerStatus = "STOPPED"
@@ -102,9 +102,9 @@ class MainActivity : AppCompatActivity() {
         const val KEY_MIRROR_VERT = "mirrorVert"
         const val KEY_MIRROR_HORIZ = "mirrorHoriz"
         const val KEY_MODE = "mode"
-        const val KEY_SERVICE_ENABLED = "serviceEnabled" // <-- NEW KEY
+        const val KEY_SERVICE_ENABLED = "serviceEnabled"
     }
-    // --- END MODIFIED ---
+    // --- END COMPANION ---
 
     private lateinit var orientationEventListener: OrientationEventListener
     private var lastRotation: Int = -1
@@ -285,13 +285,12 @@ class MainActivity : AppCompatActivity() {
     private fun loadAllPreferences() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        currentNumBars = prefs.getInt(KEY_NUM_BARS, 32)
-        currentSelectedColor = prefs.getInt(KEY_COLOR, Color.parseColor("#26a269"))
+        currentNumBars = prefs.getInt(KEY_NUM_BARS, 45) // <-- NEW DEFAULT
+        currentSelectedColor = prefs.getInt(KEY_COLOR, Color.parseColor("#4DCB4D")) // <-- NEW DEFAULT
         isMirrorVert = prefs.getBoolean(KEY_MIRROR_VERT, false)
         isMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
         currentMode = prefs.getString(KEY_MODE, "AUTO") ?: "AUTO"
         isAutoMode = (currentMode == "AUTO")
-        // NOTE: We don't load KEY_SERVICE_ENABLED here, it's checked independently
     }
 
     private fun saveNumBars(numBars: Int) {
@@ -317,7 +316,6 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putString(KEY_MODE, mode).apply()
     }
 
-    // --- NEW: Save/Load Service Enabled State ---
     private fun saveServiceEnabled(isEnabled: Boolean) {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_SERVICE_ENABLED, isEnabled).apply()
@@ -327,7 +325,7 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_SERVICE_ENABLED, false) // Default to false
     }
-    // --- END NEW ---
+    // --- END HELPER FUNCTIONS ---
 
     private fun onRotationChanged(rotation: Int) {
         updateOrientationUI(rotation)
@@ -436,7 +434,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    // --- MODIFIED FUNCTION ---
     private fun updateUI() {
         if (hasAudioPermission && hasOverlayPermission) {
             tvPermissionStatus.text = "All permissions granted."
@@ -477,16 +474,10 @@ class MainActivity : AppCompatActivity() {
 
         updateDiagnosticLabels()
 
-        // --- NEW AUTO-START LOGIC ---
-        // If the button is enabled (permissions are granted)
-        // AND the service *should* be running (based on prefs)
-        // AND the service is *not* currently running...
         if (btnToggleService.isEnabled && loadServiceEnabled() && !VisualizerService.isRunning) {
-            toggleService() // ...then start it.
+            toggleService()
         }
-        // --- END NEW AUTO-START LOGIC ---
     }
-    // --- END MODIFIED FUNCTION ---
 
     private fun updateDiagnosticLabels() {
         val expected: String = if (isAutoMode) {
@@ -500,18 +491,15 @@ class MainActivity : AppCompatActivity() {
         tvActualPosition.text = "Actual Position: $actualPosition"
     }
 
-    // --- MODIFIED FUNCTION ---
     private fun toggleService() {
         val intent = Intent(this, VisualizerService::class.java)
         if (VisualizerService.isRunning) {
-            // --- USER IS STOPPING SERVICE ---
-            saveServiceEnabled(false) // <-- SAVE STATE
+            saveServiceEnabled(false)
             stopService(intent)
             actualPosition = "STOPPED"
             visualizerStatus = "STOPPED"
         } else {
-            // --- USER IS STARTING SERVICE ---
-            saveServiceEnabled(true) // <-- SAVE STATE
+            saveServiceEnabled(true)
 
             val startPos = if (isAutoMode) {
                 val display = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
@@ -532,7 +520,6 @@ class MainActivity : AppCompatActivity() {
                 startService(intent)
             }
 
-            // Send initial settings on a delay
             handler.postDelayed({
                 sendColorCommand(currentSelectedColor)
                 sendNumBarsCommand(currentNumBars)
@@ -540,7 +527,6 @@ class MainActivity : AppCompatActivity() {
         }
         btnToggleService.postDelayed({ updateUI() }, 100)
     }
-    // --- END MODIFIED FUNCTION ---
 
     private fun getAutoPosition(rotation: Int): String {
         return when (rotation) {
@@ -563,7 +549,7 @@ class MainActivity : AppCompatActivity() {
     private fun setManualPosition(position: String) {
         isAutoMode = false
         currentMode = position
-        saveMode(position) // <-- SAVE CHANGE
+        saveMode(position)
         updateAutoButtonUI()
         updateDiagnosticLabels()
 
@@ -574,7 +560,7 @@ class MainActivity : AppCompatActivity() {
     private fun setAutoMode() {
         isAutoMode = true
         currentMode = "AUTO"
-        saveMode("AUTO") // <-- SAVE CHANGE
+        saveMode("AUTO")
         updateAutoButtonUI()
         updateDiagnosticLabels()
 
@@ -672,7 +658,7 @@ class MainActivity : AppCompatActivity() {
         return try {
             val color = Color.parseColor(fullHex)
             currentSelectedColor = color
-            saveColor(color) // <-- SAVE CHANGE
+            saveColor(color)
             (colorPreviewBox.background as? GradientDrawable)?.setColor(color)
             if (sendCommand) {
                 sendColorCommand(color)
@@ -719,7 +705,7 @@ class MainActivity : AppCompatActivity() {
                             if (color != 0) {
                                 // Live update
                                 currentSelectedColor = color
-                                saveColor(color) // <-- SAVE CHANGE
+                                saveColor(color)
                                 updateColorUI()
                                 sendColorCommand(currentSelectedColor)
                                 updateDialogPreview(dialogPreviewBox, dialogHexCode, currentSelectedColor)
