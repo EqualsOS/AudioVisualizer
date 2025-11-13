@@ -80,7 +80,7 @@ class VisualizerService : Service() {
     private val numBarsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_UPDATE_NUM_BARS) {
-                val numBars = intent.getIntExtra("NUM_BARS", 45) // <-- NEW DEFAULT
+                val numBars = intent.getIntExtra("NUM_BARS", 45)
                 Log.d(TAG, "Received numBars command: $numBars")
                 visualizerView?.setNumBars(numBars)
             }
@@ -198,9 +198,6 @@ class VisualizerService : Service() {
         userMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
     }
 
-    // --- REMOVED loadNumBarsFromPrefs() and loadColorFromPrefs() ---
-    // They are no longer needed, Activity sends them on start.
-
     private fun updatePositionForCurrentOrientation() {
         val display = windowManager.defaultDisplay
         val rotation = display.rotation
@@ -239,18 +236,11 @@ class VisualizerService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
 
         if (floatingView == null) {
-            // Load autonomous settings from SharedPreferences
             loadAllPreferences()
-
-            // Get initial position from intent
             val initialPosition = intent?.getStringExtra("POSITION") ?: "BOTTOM"
-
             Log.d(TAG, "Service starting with Mode: $currentMode, Position: $initialPosition")
 
             showOverlay(initialPosition)
-
-            // Note: Color and NumBars will be set by the Activity
-            // sending commands on a delay.
 
             if (currentMode == "AUTO") {
                 updatePositionForCurrentOrientation()
@@ -484,6 +474,7 @@ class VisualizerService : Service() {
         return params
     }
 
+    // --- MODIFIED FUNCTION ---
     private fun startVisualizer() {
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -512,7 +503,14 @@ class VisualizerService : Service() {
                             if (fft != null) {
                                 visualizerView?.updateVisualizer(fft)
                                 lastFftTime = System.currentTimeMillis()
+
+                                // --- THIS IS THE FIX ---
+                                // Remove any pending "clear" tasks
+                                handler.removeCallbacks(clearBarsRunnable)
+                                // Post a new one
                                 handler.postDelayed(clearBarsRunnable, fftTimeout + 10)
+                                // --- END FIX ---
+
                                 broadcastStatus("ACTIVE")
                             }
                         }
@@ -529,6 +527,7 @@ class VisualizerService : Service() {
             handler.postDelayed({ startVisualizer() }, 200)
         }
     }
+    // --- END MODIFIED FUNCTION ---
 
     override fun onDestroy() {
         super.onDestroy()
