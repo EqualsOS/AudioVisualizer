@@ -528,15 +528,17 @@ class MainActivity : AppCompatActivity() {
         btnToggleService.postDelayed({ updateUI() }, 100)
     }
 
+    // --- MODIFIED FUNCTION (SYNC FIX) ---
     private fun getAutoPosition(rotation: Int): String {
         return when (rotation) {
             Surface.ROTATION_0 -> "BOTTOM"
             Surface.ROTATION_90 -> "RIGHT" // Landscape Left
             Surface.ROTATION_270 -> "LEFT" // Landscape Right
-            Surface.ROTATION_180 -> "TOP"
+            Surface.ROTATION_180 -> "BOTTOM" // FIX: Treat upside-down as normal portrait position
             else -> "BOTTOM"
         }
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun getCurrentTargetPosition(): String {
         return if (isAutoMode) {
@@ -644,13 +646,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- MODIFIED FUNCTION ---
+    // --- MODIFIED FUNCTION (COLOR LIVE INPUT FIX) ---
     private val hexTextWatcher = object: TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         override fun afterTextChanged(s: Editable?) {
             val hex = s.toString()
-            parseAndSetColor(hex, false)
+            parseAndSetColor(hex, true) // <-- FIX: sendCommand set to true for live update
         }
     }
 

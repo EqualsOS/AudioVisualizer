@@ -30,6 +30,9 @@ import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 
 class VisualizerService : Service() {
 
@@ -110,7 +113,10 @@ class VisualizerService : Service() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_SET_MODE) {
                 val newMode = intent.getStringExtra("MODE") ?: "AUTO"
-                Log.d(TAG, "Mode set to: $newMode")
+
+                handler.removeCallbacks(updatePositionRunnable)
+                Log.d(TAG, "Mode set to: $newMode. Rotation debounce canceled.")
+
                 currentMode = newMode
 
                 if (currentMode == "AUTO") {
@@ -213,7 +219,7 @@ class VisualizerService : Service() {
             Surface.ROTATION_0 -> "BOTTOM"
             Surface.ROTATION_90 -> "RIGHT"
             Surface.ROTATION_270 -> "LEFT"
-            Surface.ROTATION_180 -> "TOP"
+            Surface.ROTATION_180 -> "TOP" // RESTORED ORIGINAL TOP
             else -> "BOTTOM"
         }
     }
@@ -317,16 +323,36 @@ class VisualizerService : Service() {
         currentParams = null
     }
 
+    // --- MODIFIED FUNCTION (Added Forced Rebuild Logic) ---
+    private fun forceViewUpdate(position: String) {
+        // 1. Remove the old view instance (which is potentially corrupted)
+        if (floatingView != null) {
+            removeOverlay()
+        }
+        // 2. Re-create and add the new view instance with the updated position
+        showOverlay(position)
+        // 3. Immediately trigger mirror logic for the new view
+        applyMirrorLogic()
+        Log.i(TAG, "Forced view update to $position (Full View Rebuild).")
+    }
+
     private fun updateOverlayPosition(position: String) {
         if (floatingView == null || currentParams == null || !floatingView!!.isAttachedToWindow) {
             Log.w(TAG, "updateOverlayPosition called but view is not ready. Re-creating.")
-            removeOverlay()
-            showOverlay(position)
-            applyMirrorLogic()
+            forceViewUpdate(position)
             return
         }
 
         val positionChanged = (position != currentPosition)
+
+        // CRITICAL CHECK: If we are swapping sides (LEFT <-> RIGHT), we MUST force a view rebuild.
+        val isSideSwap = (position == "LEFT" && currentPosition == "RIGHT") || (position == "RIGHT" && currentPosition == "LEFT")
+
+        if (isSideSwap) {
+            // Forcing a complete view rebuild on side swaps is the only reliable way.
+            forceViewUpdate(position)
+            return
+        }
 
         currentParams = createLayoutParams(position)
 
@@ -342,11 +368,10 @@ class VisualizerService : Service() {
 
         } catch (e: Exception) {
             Log.e(TAG, "Error updating view layout", e)
-            removeOverlay()
-            showOverlay(position)
-            applyMirrorLogic()
+            forceViewUpdate(position) // Fallback to hard rebuild
         }
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun broadcastActualPosition(position: String) {
         val intent = Intent(ACTION_POSITION_UPDATED)
@@ -474,7 +499,6 @@ class VisualizerService : Service() {
         return params
     }
 
-    // --- MODIFIED FUNCTION ---
     private fun startVisualizer() {
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -491,6 +515,39 @@ class VisualizerService : Service() {
             visualizer = Visualizer(0).apply {
                 enabled = false
                 captureSize = Visualizer.getCaptureSizeRange()[1]
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        val listenerClass = Class.forName("android.media.audiofx.Visualizer\$OnControlStatusChangeListener")
+
+                        val listenerProxy = Proxy.newProxyInstance(
+                            listenerClass.classLoader,
+                            arrayOf(listenerClass),
+                            object : InvocationHandler {
+                                override fun invoke(proxy: Any, method: Method, args: Array<Any>): Any? {
+                                    if (method.name == "onControlStatusChange") {
+                                        val controlGranted = args[1] as Boolean
+                                        if (!controlGranted) {
+                                            Log.w(TAG, "Audio control lost (e.g., app backgrounded). Freezing bars.")
+                                            handler.removeCallbacks(clearBarsRunnable)
+                                        } else {
+                                            Log.i(TAG, "Audio control granted.")
+                                        }
+                                    }
+                                    return null
+                                }
+                            }
+                        )
+
+                        val setListenerMethod = this.javaClass.getMethod("setControlStatusListener", listenerClass)
+
+                        setListenerMethod.invoke(this, listenerProxy)
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to set ControlStatusListener via reflection", e)
+                    }
+                }
+
                 setDataCaptureListener(
                     object : Visualizer.OnDataCaptureListener {
                         override fun onWaveFormDataCapture(v: Visualizer?, w: ByteArray?, r: Int) {}
@@ -504,12 +561,8 @@ class VisualizerService : Service() {
                                 visualizerView?.updateVisualizer(fft)
                                 lastFftTime = System.currentTimeMillis()
 
-                                // --- THIS IS THE FIX ---
-                                // Remove any pending "clear" tasks
                                 handler.removeCallbacks(clearBarsRunnable)
-                                // Post a new one
                                 handler.postDelayed(clearBarsRunnable, fftTimeout + 10)
-                                // --- END FIX ---
 
                                 broadcastStatus("ACTIVE")
                             }
@@ -527,7 +580,6 @@ class VisualizerService : Service() {
             handler.postDelayed({ startVisualizer() }, 200)
         }
     }
-    // --- END MODIFIED FUNCTION ---
 
     override fun onDestroy() {
         super.onDestroy()
