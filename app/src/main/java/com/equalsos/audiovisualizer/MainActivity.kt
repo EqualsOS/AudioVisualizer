@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var colorPreviewBox: View
     private lateinit var etHexCode: EditText
     private lateinit var tvColorLabel: TextView
-    private var currentSelectedColor: Int = Color.parseColor("#4DCB4D") // <-- NEW DEFAULT
+    private var currentSelectedColor: Int = Color.parseColor("#4DCB4D")
 
     // Mirrored Switches
     private lateinit var switchMirrorVert: SwitchMaterial
@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
     // --- SLIDER VIEWS ---
     private lateinit var sliderNumBars: Slider
     private lateinit var tvNumBarsLabel: TextView
-    private var currentNumBars: Int = 45 // <-- NEW DEFAULT
+    private var currentNumBars: Int = 45
 
     // --- Diagnostic Views ---
     private lateinit var tvCurrentMode: TextView
@@ -285,8 +285,8 @@ class MainActivity : AppCompatActivity() {
     private fun loadAllPreferences() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        currentNumBars = prefs.getInt(KEY_NUM_BARS, 45) // <-- NEW DEFAULT
-        currentSelectedColor = prefs.getInt(KEY_COLOR, Color.parseColor("#4DCB4D")) // <-- NEW DEFAULT
+        currentNumBars = prefs.getInt(KEY_NUM_BARS, 45)
+        currentSelectedColor = prefs.getInt(KEY_COLOR, Color.parseColor("#4DCB4D"))
         isMirrorVert = prefs.getBoolean(KEY_MIRROR_VERT, false)
         isMirrorHoriz = prefs.getBoolean(KEY_MIRROR_HORIZ, false)
         currentMode = prefs.getString(KEY_MODE, "AUTO") ?: "AUTO"
@@ -487,8 +487,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         tvCurrentMode.text = "CURRENT MODE: $currentMode"
-        tvExpectedPosition.text = "Expected Position: $expected"
-        tvActualPosition.text = "Actual Position: $actualPosition"
+        tvExpectedPosition.text = "Expected Position: expected"
+        tvActualPosition.text = "Actual Position: actualPosition"
     }
 
     private fun toggleService() {
@@ -644,6 +644,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // --- MODIFIED FUNCTION ---
     private val hexTextWatcher = object: TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -654,9 +655,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun parseAndSetColor(hex: String, sendCommand: Boolean): Boolean {
-        val fullHex = if (hex.startsWith("#")) hex else "#$hex"
+        // 1. Sanitize and normalize the input string
+        var inputHex = if (hex.startsWith("#")) hex.uppercase() else "#${hex.uppercase()}"
+
+        // 2. Handle shorthand: #RGB -> #RRGGBB
+        val colorToParse = if (inputHex.length == 4 && inputHex.startsWith("#")) {
+            val r = inputHex[1]
+            val g = inputHex[2]
+            val b = inputHex[3]
+            "#$r$r$g$g$b$b"
+        } else {
+            inputHex
+        }
+
+        // 3. Attempt parsing
         return try {
-            val color = Color.parseColor(fullHex)
+            val color = Color.parseColor(colorToParse)
             currentSelectedColor = color
             saveColor(color)
             (colorPreviewBox.background as? GradientDrawable)?.setColor(color)
@@ -669,6 +683,7 @@ class MainActivity : AppCompatActivity() {
             false
         }
     }
+    // --- END MODIFIED FUNCTION ---
 
     private fun showColorPickerDialog() {
         val dialog = Dialog(this, R.style.ColorPickerDialogTheme)
